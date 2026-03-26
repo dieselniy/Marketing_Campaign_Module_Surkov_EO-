@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "Kaggle Database"
 
 file_path = DATA_DIR / "online_advertising_performance.csv"
-daf = pdы.read_csv(file_path)
+daf = pds.read_csv(file_path)
 daf.columns = daf.columns.str.lower().str.strip()
 
 # --- Инициализация session_state ---
