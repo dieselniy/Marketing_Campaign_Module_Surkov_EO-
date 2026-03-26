@@ -10,8 +10,8 @@ from pathlib import Path
 
 
 # Загрузка файла
-BASE_DIR = Path(__file__).resolve().parent.parent
-file_path = BASE_DIR / "Kaggle Database" / "online_advertising.csv"
+
+file_path = "Kaggle Database/online_advertising_performance_data.csv"
 
 daf = pds.read_csv(file_path)
 # --- Инициализация session_state ---
