@@ -8,3 +8,4 @@ pydantic
 pydantic-settings
 psycopg[binary]
 psycopg
+pathlib
