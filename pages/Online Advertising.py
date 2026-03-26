@@ -9,14 +9,11 @@ from plotly.subplots import make_subplots
 from pathlib import Path
 
 
-# 📂 Загрузка файла
+# Загрузка файла
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "Kaggle Database"
+file_path = BASE_DIR / "Kaggle Database" / "online_advertising.csv"
 
-file_path = DATA_DIR / "online_advertising_performance.csv"
 daf = pds.read_csv(file_path)
-daf.columns = daf.columns.str.lower().str.strip()
-
 # --- Инициализация session_state ---
 init_session_state()
 
