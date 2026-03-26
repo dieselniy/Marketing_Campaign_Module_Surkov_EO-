@@ -8,6 +8,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 
+daf = pd.read_csv(file_path)
+daf.columns = daf.columns.str.lower().str.strip()
 
 # 📂 Загрузка файла
 BASE_DIR = Path(__file__).resolve().parent.parent
