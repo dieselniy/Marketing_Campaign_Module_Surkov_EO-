@@ -4,3 +4,5 @@ pandas
 scikit-learn
 plotly
 SQLAlchemy
+pydantic
+pydantic-settings
