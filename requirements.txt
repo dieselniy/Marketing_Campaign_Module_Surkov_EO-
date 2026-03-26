@@ -6,3 +6,5 @@ plotly
 SQLAlchemy
 pydantic
 pydantic-settings
+psycopg[binary]
+psycopg
