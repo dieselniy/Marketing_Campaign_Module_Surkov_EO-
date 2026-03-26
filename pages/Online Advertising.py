@@ -6,6 +6,7 @@ import pandas as pds
 from sklearn.ensemble import RandomForestRegressor
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from pathlib import Path
 
 
 # 📂 Загрузка файла
