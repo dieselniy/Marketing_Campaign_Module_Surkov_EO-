@@ -75,7 +75,7 @@ with main_container:
         )
     
 
-daf['ROI'] = npy.where(
+daf['ROMI'] = npy.where(
     daf['post_click_conversions'] > 0,
     daf['cost'] / daf['post_click_conversions'],
     0
@@ -86,7 +86,7 @@ with graph_container:
 
     chart_type = slt.radio(
         ':gray[Выберите график:]',
-        ["Затраты и ROI", "Использование кампаний по месяцам"],
+        ["Затраты и ROMI", "Использование кампаний по месяцам"],
         horizontal=True,
         key="graph_mode"
     )
@@ -96,7 +96,7 @@ with graph_container:
         daf['month'] + ' ' + daf['day'].astype(str) + ' 2024'
     )
 
-    if chart_type == "Затраты и ROI":
+    if chart_type == "Затраты и ROMI":
         # --- Ежедневные затраты ---
         campaign_grouped = (
             daf.groupby(['date', 'campaign_number'])['cost']
@@ -115,51 +115,51 @@ with graph_container:
         final_df = campaign_grouped.copy()
         final_df["Total"] = total_grouped
 
-        # --- Средний ROI по месяцам по кампаниям ---
-        monthly_roi_df = (
-            daf.groupby(['month', 'campaign_number'])['ROI']
+        # --- Средний ROMI по месяцам по кампаниям ---
+        monthly_ROMI_df = (
+            daf.groupby(['month', 'campaign_number'])['ROMI']
             .mean()
             .reset_index()
         )
 
         month_order = ['April', 'May', 'June']
-        monthly_roi_df['month'] = pds.Categorical(
-            monthly_roi_df['month'],
+        monthly_ROMI_df['month'] = pds.Categorical(
+            monthly_ROMI_df['month'],
             categories=month_order,
             ordered=True
         )
 
-        monthly_roi_df = monthly_roi_df.sort_values(['month', 'campaign_number'])
+        monthly_ROMI_df = monthly_ROMI_df.sort_values(['month', 'campaign_number'])
 
         month_date_map = {
             'April': pds.Timestamp('2024-04-15'),
             'May': pds.Timestamp('2024-05-15'),
             'June': pds.Timestamp('2024-06-15')
         }
-        monthly_roi_df['date'] = monthly_roi_df['month'].map(month_date_map)
+        monthly_ROMI_df['date'] = monthly_ROMI_df['month'].map(month_date_map)
 
-        # --- Total ROI по месяцам ---
-        monthly_total_roi = (
+        # --- Total ROMI по месяцам ---
+        monthly_total_ROMI = (
             daf.groupby('month')[['cost', 'post_click_conversions']]
             .sum()
             .reset_index()
         )
 
-        monthly_total_roi['month'] = pds.Categorical(
-            monthly_total_roi['month'],
+        monthly_total_ROMI['month'] = pds.Categorical(
+            monthly_total_ROMI['month'],
             categories=month_order,
             ordered=True
         )
 
-        monthly_total_roi = monthly_total_roi.sort_values('month')
+        monthly_total_ROMI = monthly_total_ROMI.sort_values('month')
 
-        monthly_total_roi['ROI'] = npy.where(
-            monthly_total_roi['post_click_conversions'] > 0,
-            monthly_total_roi['cost'] / monthly_total_roi['post_click_conversions'],
+        monthly_total_ROMI['ROMI'] = npy.where(
+            monthly_total_ROMI['post_click_conversions'] > 0,
+            monthly_total_ROMI['cost'] / monthly_total_ROMI['post_click_conversions'],
             0
         )
 
-        monthly_total_roi['date'] = monthly_total_roi['month'].map(month_date_map)
+        monthly_total_ROMI['date'] = monthly_total_ROMI['month'].map(month_date_map)
 
         # --- UI: выбор кампаний ---
         all_columns = final_df.columns.tolist()
@@ -177,9 +177,9 @@ with graph_container:
 
         filtered_cost_df = final_df[selected_columns]
 
-        selected_roi_campaigns = [col for col in selected_columns if col != "Total"]
-        filtered_roi_df = monthly_roi_df[
-            monthly_roi_df['campaign_number'].isin(selected_roi_campaigns)
+        selected_ROMI_campaigns = [col for col in selected_columns if col != "Total"]
+        filtered_ROMI_df = monthly_ROMI_df[
+            monthly_ROMI_df['campaign_number'].isin(selected_ROMI_campaigns)
         ]
 
         fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -189,7 +189,7 @@ with graph_container:
             "camp 1": "#1f77b4",
             "camp 2": "#ffb6b6",
             "camp 3": "#ff2d2d",
-            "Total ROI": "#00ffcc"
+            "Total ROMI": "#00ffcc"
         }
 
         # --- Линии затрат ---
@@ -214,18 +214,18 @@ with graph_container:
                 secondary_y=False
             )
 
-        # --- Линии ROI по кампаниям ---
-        for campaign in selected_roi_campaigns:
-            campaign_roi = filtered_roi_df[
-                filtered_roi_df['campaign_number'] == campaign
+        # --- Линии ROMI по кампаниям ---
+        for campaign in selected_ROMI_campaigns:
+            campaign_ROMI = filtered_ROMI_df[
+                filtered_ROMI_df['campaign_number'] == campaign
             ]
 
             fig.add_trace(
                 go.Scatter(
-                    x=campaign_roi['date'],
-                    y=campaign_roi['ROI'],
+                    x=campaign_ROMI['date'],
+                    y=campaign_ROMI['ROMI'],
                     mode='lines+markers',
-                    name=f"{campaign} — ROI",
+                    name=f"{campaign} — ROMI",
                     line=dict(
                         width=3,
                         dash='dash',
@@ -235,29 +235,29 @@ with graph_container:
                     hovertemplate=(
                         "Месяц: %{x|%B}<br>"
                         "Кампания: " + campaign + "<br>"
-                        "Средний ROI: %{y:.3f}<extra></extra>"
+                        "Средний ROMI: %{y:.3f}<extra></extra>"
                     )
                 ),
                 secondary_y=True
             )
 
-        # --- Линия Total ROI ---
+        # --- Линия Total ROMI ---
         if "Total" in selected_columns:
             fig.add_trace(
                 go.Scatter(
-                    x=monthly_total_roi['date'],
-                    y=monthly_total_roi['ROI'],
+                    x=monthly_total_ROMI['date'],
+                    y=monthly_total_ROMI['ROMI'],
                     mode='lines+markers',
-                    name="Total — ROI",
+                    name="Total — ROMI",
                     line=dict(
                         width=4,
                         dash='dot',
-                        color=color_map["Total ROI"]
+                        color=color_map["Total ROMI"]
                     ),
                     marker=dict(size=9),
                     hovertemplate=(
                         "Месяц: %{x|%B}<br>"
-                        "Общий ROI: %{y:.3f}<extra></extra>"
+                        "Общий ROMI: %{y:.3f}<extra></extra>"
                     )
                 ),
                 secondary_y=True
@@ -278,7 +278,7 @@ with graph_container:
         )
 
         fig.update_yaxes(title_text="Затраты", secondary_y=False)
-        fig.update_yaxes(title_text="Средний ROI", secondary_y=True)
+        fig.update_yaxes(title_text="Средний ROMI", secondary_y=True)
 
         slt.plotly_chart(fig, use_container_width=True)
 
@@ -288,7 +288,7 @@ with graph_container:
             daf.groupby(['date', 'campaign_number'])
             .agg(
                 usage_count=('campaign_number', 'count'),
-                avg_roi=('ROI', 'mean')
+                avg_ROMI=('ROMI', 'mean')
             )
             .reset_index()
         )
@@ -299,7 +299,7 @@ with graph_container:
             campaign_usage.groupby(['month', 'campaign_number'])
             .agg(
                 usage_count=('usage_count', 'sum'),
-                avg_roi=('avg_roi', 'mean')
+                avg_ROMI=('avg_ROMI', 'mean')
             )
             .reset_index()
         )
@@ -374,9 +374,9 @@ with graph_container:
 
 
 with scatter_container:
-    slt.subheader("ROI по местам размещения")
+    slt.subheader("ROMI по местам размещения")
     
-    scatter_df = daf[['placement', 'ROI']].dropna().copy()
+    scatter_df = daf[['placement', 'ROMI']].dropna().copy()
     scatter_df = scatter_df.rename(columns={
         'placement': 'Места размещения рекламных баннеров'
     })
@@ -384,7 +384,7 @@ with scatter_container:
     slt.scatter_chart(
         scatter_df,
         x='Места размещения рекламных баннеров',
-        y='ROI',
+        y='ROMI',
     )    
 
 
@@ -430,34 +430,34 @@ with barchart_container:
     )
 
     with success_container:
-        slt.subheader("Успешные кампании по ROI")
+        slt.subheader("Успешные кампании по ROMI")
 
-        successful_campaigns = daf[daf['ROI'] > 1]
+        successful_campaigns = daf[daf['ROMI'] > 1]
 
         success_df = (
-            successful_campaigns.groupby('campaign_number', as_index=False)['ROI']
+            successful_campaigns.groupby('campaign_number', as_index=False)['ROMI']
             .mean()
-            .sort_values(by='ROI', ascending=False)
+            .sort_values(by='ROMI', ascending=False)
         )
 
         success_df = success_df.rename(columns={
             'campaign_number': 'Кампания',
-            'ROI': 'ROI'
+            'ROMI': 'ROMI'
         })
 
         slt.bar_chart(
             success_df,
             x='Кампания',
-            y='ROI',
+            y='ROMI',
             color='Кампания'
         )
 
         with importance_container:
-            slt.subheader("Топ 10 признаков для ROI")
+            slt.subheader("Топ 10 признаков для ROMI")
 
-            X = daf.drop(columns=['ROI', 'date']).copy()
+            X = daf.drop(columns=['ROMI', 'date']).copy()
             X = pds.get_dummies(X)
-            y = daf['ROI']
+            y = daf['ROMI']
 
             rf = RandomForestRegressor(n_estimators=100, random_state=42)
             rf.fit(X, y)
