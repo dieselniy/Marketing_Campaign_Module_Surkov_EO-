@@ -9,3 +9,4 @@ pydantic-settings
 psycopg[binary]
 psycopg
 pathlib
+datetime
