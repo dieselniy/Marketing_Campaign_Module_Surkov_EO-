@@ -65,8 +65,8 @@ slt.header("Аналитика рекламной кампании Банка-X"
 slt.markdown("Динамика контактов и открытий депозитов")
 
 # --- Контейнеры ---
-main_container = slt.container(
-    key="bank_main_container",
+main_cont = slt.container(
+    key="bank_main_cont",
     horizontal_alignment="center",
     vertical_alignment="center",
     border=False,
