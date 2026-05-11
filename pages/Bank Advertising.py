@@ -324,6 +324,247 @@ with profile_panel:
         color="Открыл депозит"
     )
 
+VAL_LABLS = {
+    "job": {
+        "admin.": "Администратор",
+        "blue-collar": "Рабочий",
+        "entrepreneur": "Предприниматель",
+        "housemaid": "Домработник",
+        "management": "Менеджмент",
+        "retired": "Пенсионер",
+        "self-employed": "Самозанятый",
+        "services": "Сфера услуг",
+        "student": "Студент",
+        "technician": "Технический специалист",
+        "unemployed": "Безработный",
+        "unknown": "Неизвестно"
+    },
+    "marital": {
+        "divorced": "Разведён(а)",
+        "married": "В браке",
+        "single": "Не в браке"
+    },
+    "education": {
+        "primary": "Начальное",
+        "secondary": "Среднее",
+        "tertiary": "Высшее",
+        "unknown": "Неизвестно"
+    },
+    "default": {
+        "no": "Нет",
+        "yes": "Да"
+    },
+    "housing": {
+        "no": "Нет",
+        "yes": "Да"
+    },
+    "loan": {
+        "no": "Нет",
+        "yes": "Да"
+    },
+    "contact": {
+        "cellular": "Сотовый телефон",
+        "telephone": "Стационарный звонок",
+        "unknown": "Неизвестно"
+    },
+    "month": {
+        "jan": "Январь",
+        "feb": "Февраль",
+        "mar": "Март",
+        "apr": "Апрель",
+        "may": "Май",
+        "jun": "Июнь",
+        "jul": "Июль",
+        "aug": "Август",
+        "sep": "Сентябрь",
+        "oct": "Октябрь",
+        "nov": "Ноябрь",
+        "dec": "Декабрь"
+    },
+    "poutcome": {
+        "failure": "Неуспешно",
+        "other": "Другое",
+        "success": "Успешно",
+        "unknown": "Неизвестно"
+    }
+}
+
+with predictor_panel:
+    slt.subheader("Прогноз открытия депозита")
+    slt.caption(
+        "Заполните параметры клиента и оцените вероятность положительного отклика "
+        "по обученной модели Gradient Boosting."
+    )
+
+    with slt.form("bank_deposit_prediction_form"):
+        client_col_1, client_col_2, client_col_3, client_col_4 = slt.columns(4, gap="large")
+
+        with client_col_1:
+            age = slt.number_input(
+                "Возраст",
+                min_value=18,
+                max_value=100,
+                value=35,
+                key="predict_age"
+            )
+            job = localized_selectbox(
+                "Профессия",
+                "job",
+                [
+                    "admin.", "blue-collar", "entrepreneur", "housemaid",
+                    "management", "retired", "self-employed", "services",
+                    "student", "technician", "unemployed", "unknown"
+                ],
+                key="predict_job"
+            )
+            marital = localized_selectbox(
+                "Семейное положение",
+                "marital",
+                ["divorced", "married", "single"],
+                key="predict_marital"
+            )
+            education = localized_selectbox(
+                "Образование",
+                "education",
+                ["primary", "secondary", "tertiary", "unknown"],
+                index=1,
+                key="predict_education"
+            )
+
+        with client_col_2:
+            default = localized_selectbox(
+                "Дефолт по кредиту",
+                "default",
+                ["no", "yes"],
+                key="predict_default"
+            )
+            balance = slt.number_input(
+                "Баланс (в долларах)",
+                value=1000,
+                key="predict_balance"
+            )
+            housing = localized_selectbox(
+                "Ипотека",
+                "housing",
+                ["no", "yes"],
+                index=1,
+                key="predict_housing"
+            )
+            loan = localized_selectbox(
+                "Персональный заем",
+                "loan",
+                ["no", "yes"],
+                key="predict_loan"
+            )
+
+        with client_col_3:
+            contact = localized_selectbox(
+                "Тип контакта",
+                "contact",
+                ["cellular", "telephone", "unknown"],
+                key="predict_contact"
+            )
+            day = slt.number_input(
+                "День контакта",
+                min_value=1,
+                max_value=31,
+                value=15,
+                key="predict_day"
+            )
+            month = localized_selectbox(
+                "Месяц",
+                "month",
+                [
+                    "jan", "feb", "mar", "apr", "may", "jun",
+                    "jul", "aug", "sep", "oct", "nov", "dec"
+                ],
+                index=4,
+                key="predict_month"
+            )
+            duration = slt.number_input(
+                "Длительность звонка",
+                min_value=0,
+                value=300,
+                key="predict_duration"
+            )
+
+        with client_col_4:
+            campaign = slt.number_input(
+                "Контактов в кампании",
+                min_value=1,
+                value=2,
+                key="predict_campaign"
+            )
+            pdays = slt.number_input(
+                "Дней после прошлого контакта",
+                value=-1,
+                key="predict_pdays"
+            )
+            previous = slt.number_input(
+                "Прошлых контактов",
+                min_value=0,
+                value=0,
+                key="predict_previous"
+            )
+            poutcome = localized_selectbox(
+                "Результат прошлой кампании",
+                "poutcome",
+                ["failure", "other", "success", "unknown"],
+                index=3,
+                key="predict_poutcome"
+            )
+
+        submitted_prediction = slt.form_submit_button(
+            "Сделать прогноз",
+            type="primary",
+            use_container_width=True
+        )
+
+    if submitted_prediction:
+        client = {
+            "age": age,
+            "job": job,
+            "marital": marital,
+            "education": education,
+            "default": default,
+            "balance": balance,
+            "housing": housing,
+            "loan": loan,
+            "contact": contact,
+            "day": day,
+            "month": month,
+            "duration": duration,
+            "campaign": campaign,
+            "pdays": pdays,
+            "previous": previous,
+            "poutcome": poutcome
+        }
+
+        result = pred_client(
+            cd=client,
+            model_artifact=model_artifact
+        )
+
+        probability = result["deposit_probability"]
+        label = "Да" if result["prediction_label"] == "yes" else "Нет"
+
+        result_col_1, result_col_2 = slt.columns([1, 2], gap="large")
+
+        with result_col_1:
+            slt.metric("Вероятность открытия депозита", f"{probability:.2%}")
+            slt.write("Прогноз модели:", label)
+
+        with result_col_2:
+            slt.progress(min(max(probability, 0), 1))
+
+            if probability >= 0.75:
+                slt.success("Высокий приоритет клиента")
+            elif probability >= 0.45:
+                slt.warning("Средний приоритет клиента")
+            else:
+                slt.error("Низкий приоритет клиента")
+
+
 
 # time.sleep(5)
 # slt.rerun()
