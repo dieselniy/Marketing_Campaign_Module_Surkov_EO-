@@ -390,6 +390,44 @@ VAL_LABLS = {
     }
 }
 
+with conversion_panel:
+    slt.subheader("Лучшие клиентские группы")
+
+    education_success = (
+        bank_daf
+        .groupby(["education", "marital"], as_index=False)
+        .agg(
+            clients_count=("deposit", "count"),
+            deposits_count=("deposit_flag", "sum")
+        )
+    )
+    education_success["conversion_rate"] = npy.where(
+        education_success["clients_count"] >= 25,
+        education_success["deposits_count"] / education_success["clients_count"] * 100,
+        npy.nan
+    )
+    education_success = (
+        education_success
+        .dropna(subset=["conversion_rate"])
+        .sort_values("conversion_rate", ascending=False)
+        .head(10)
+    )
+    education_success["segment"] = (
+        education_success["education"] + " / " + education_success["marital"]
+    )
+    education_success = education_success.rename(columns={
+        "segment": "Сегмент",
+        "conversion_rate": "Конверсия, %"
+    })
+
+    slt.bar_chart(
+        education_success,
+        x="Сегмент",
+        y="Конверсия, %",
+        color="Сегмент"
+    )
+
+
 def bank_ml_artif(path):
     artifact, *_ = train_gb_artifact(path)
     return artifact
