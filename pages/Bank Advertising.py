@@ -5,8 +5,8 @@ import streamlit as slt
 from plotly.subplots import make_subplots
 from src.auth import init_session_state, require_login, check_session
 
-file_path = "Kaggle Database/online_advertising_performance_data.csv"
-daf = pds.read_csv(file_path)
+file_path = "Kaggle Database/bank.csv"
+bank_daf = pds.read_csv(file_path)
 init_session_state()
 
 mth_numbs = {
@@ -39,11 +39,11 @@ mth_labls = {
     "dec": "Декабрь",
 }
 
-bank_frame["deposit_flag"] = (bank_frame["deposit"] == "yes").astype(int)
-bank_frame["campaign_date"] = pds.to_datetime({
+bank_daf["deposit_flag"] = (bank_daf["deposit"] == "yes").astype(int)
+bank_daf["campaign_date"] = pds.to_datetime({
     "year": 2024,
-    "month": bank_frame["month"].map(mth_numbs),
-    "day": bank_frame["day"],
+    "month": bank_daf["month"].map(mth_numbs),
+    "day": bank_daf["day"],
 })
 
 slt.set_page_config(page_title="Банк-X: рекламные контакты", layout="wide")
@@ -72,49 +72,50 @@ main_container = slt.container(
     border=False,
 )
 
-with main_container:
+with main_cont:
     overview_panel = slt.container(
         height=800,
-        border=True,
+        border=True
     )
 
     slt.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
 
-    col1, col2 = slt.columns([1, 1], gap="large")
+    left_lane, right_lane = slt.columns([1, 1], gap="large")
 
-    with col1:
+    with left_lane:
         profile_panel = slt.container(
             height=600,
-            border=True,
+            border=True
         )
 
-    with col2:
+    with right_lane:
         segment_panel = slt.container(
             height=600,
-            border=True,
+            border=True
         )
 
     slt.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
 
-    col3, col4 = slt.columns([1, 1], gap="large")
+    lower_left_lane, lower_right_lane = slt.columns([1, 1], gap="large")
 
-    with col3:
+    with lower_left_lane:
         conversion_panel = slt.container(
             height=500,
-            border=True,
+            border=True
         )
 
-    with col4:
+    with lower_right_lane:
         driver_panel = slt.container(
             height=500,
-            border=True,
+            border=True
         )
 
     slt.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
 
     predictor_panel = slt.container(
-        border=True,
+        border=True
     )
+
 
 
 with overview_panel:
@@ -129,7 +130,7 @@ with overview_panel:
 
     if view_mode == "Контакты и конверсия":
         daily_contact = (
-            bank_frame
+            bank_daf
             .dropna(subset=["campaign_date"])
             .groupby("campaign_date")
             .agg(
@@ -148,7 +149,7 @@ with overview_panel:
         )
 
         monthly_conversion = (
-            bank_frame
+            bank_daf
             .groupby("month", as_index=False)
             .agg(
                 clients_count=("deposit", "count"),
@@ -240,7 +241,7 @@ with overview_panel:
 
     else:
         workload = (
-            bank_frame
+            bank_daf
             .groupby(["month", "contact"], as_index=False)
             .agg(clients_count=("deposit", "count"))
         )
@@ -302,6 +303,26 @@ with overview_panel:
         )
 
         slt.plotly_chart(fig, use_container_width=True)
+
+with profile_panel:
+    slt.subheader("Баланс и длительность разговора")
+
+    balance_view = bank_frame[["balance", "duration", "deposit"]].dropna().rename(columns={
+        "balance": "Баланс клиента",
+        "duration": "Длительность звонка",
+        "deposit": "Открыл депозит"
+    })
+    balance_view["Открыл депозит"] = balance_view["Открыл депозит"].map({
+        "yes": "Да",
+        "no": "Нет"
+    })
+
+    slt.scatter_chart(
+        balance_view,
+        x="Баланс клиента",
+        y="Длительность звонка",
+        color="Открыл депозит"
+    )
 
 
 # time.sleep(5)
