@@ -389,6 +389,16 @@ VAL_LABLS = {
     }
 }
 
+def loc_selctbox(label, field_name, options, key, index=0):
+    labels = VAL_LABLS[field_name]
+    return slt.selectbox(
+        label,
+        options,
+        index=index,
+        key=key,
+        format_func=lambda value: labels.get(value, value)
+    )
+
 with predictor_panel:
     slt.subheader("Прогноз открытия депозита")
     slt.caption(
@@ -407,7 +417,7 @@ with predictor_panel:
                 value=35,
                 key="predict_age"
             )
-            job = localized_selectbox(
+            job = loc_selctbox(
                 "Профессия",
                 "job",
                 [
@@ -417,13 +427,13 @@ with predictor_panel:
                 ],
                 key="predict_job"
             )
-            marital = localized_selectbox(
+            marital = loc_selctbox(
                 "Семейное положение",
                 "marital",
                 ["divorced", "married", "single"],
                 key="predict_marital"
             )
-            education = localized_selectbox(
+            education = loc_selctbox(
                 "Образование",
                 "education",
                 ["primary", "secondary", "tertiary", "unknown"],
@@ -432,7 +442,7 @@ with predictor_panel:
             )
 
         with client_col_2:
-            default = localized_selectbox(
+            default = loc_selctbox(
                 "Дефолт по кредиту",
                 "default",
                 ["no", "yes"],
@@ -443,14 +453,14 @@ with predictor_panel:
                 value=1000,
                 key="predict_balance"
             )
-            housing = localized_selectbox(
+            housing = loc_selctbox(
                 "Ипотека",
                 "housing",
                 ["no", "yes"],
                 index=1,
                 key="predict_housing"
             )
-            loan = localized_selectbox(
+            loan = loc_selctbox(
                 "Персональный заем",
                 "loan",
                 ["no", "yes"],
@@ -458,7 +468,7 @@ with predictor_panel:
             )
 
         with client_col_3:
-            contact = localized_selectbox(
+            contact = loc_selctbox(
                 "Тип контакта",
                 "contact",
                 ["cellular", "telephone", "unknown"],
@@ -471,7 +481,7 @@ with predictor_panel:
                 value=15,
                 key="predict_day"
             )
-            month = localized_selectbox(
+            month = loc_selctbox(
                 "Месяц",
                 "month",
                 [
@@ -506,7 +516,7 @@ with predictor_panel:
                 value=0,
                 key="predict_previous"
             )
-            poutcome = localized_selectbox(
+            poutcome = loc_selctbox(
                 "Результат прошлой кампании",
                 "poutcome",
                 ["failure", "other", "success", "unknown"],
