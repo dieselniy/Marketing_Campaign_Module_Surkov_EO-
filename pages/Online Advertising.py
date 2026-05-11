@@ -482,6 +482,22 @@ with barchart_container:
                 color='Признак'
             )
 
+def data_forecboud():
+    available_months = [
+        month_name
+        for month_name in DATASET_MONTH_ORDER
+        if month_name in set(daf["month"].dropna().unique())
+    ]
+    first_month = MONTH_NUMBER_BY_NAME[available_months[0]]
+    last_month = MONTH_NUMBER_BY_NAME[available_months[-1]]
+
+    min_day = int(daf.loc[daf["month"] == available_months[0], "day"].min())
+    max_day = int(daf.loc[daf["month"] == available_months[-1], "day"].max())
+
+    return (
+        date(FORECAST_YEAR, first_month, min_day),
+        date(FORECAST_YEAR, last_month, max_day),
+    )
 
 
 with roas_pred:
@@ -490,7 +506,7 @@ with roas_pred:
         "Произведите оценку вашего размещения на разных платформах по заданным параметрам"
     )
 
-    forecast_min_date, forecast_max_date = get_dataset_forecast_bounds()
+    forecast_min_date, forecast_max_date = data_forecboud()
     default_start_date = forecast_min_date
     default_end_date = min(
         forecast_max_date,
