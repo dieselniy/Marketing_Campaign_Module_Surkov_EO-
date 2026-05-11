@@ -74,6 +74,9 @@ with main_container:
             border=True
         )
     
+    roas_pred = slt.container(
+        border=True
+    )
 
 daf['ROMI'] = npy.where(
     daf['post_click_conversions'] > 0,
