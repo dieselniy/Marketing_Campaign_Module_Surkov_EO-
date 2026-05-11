@@ -307,7 +307,7 @@ with overview_panel:
 with profile_panel:
     slt.subheader("Баланс и длительность разговора")
 
-    balance_view = bank_frame[["balance", "duration", "deposit"]].dropna().rename(columns={
+    balance_view = bank_daf[["balance", "duration", "deposit"]].dropna().rename(columns={
         "balance": "Баланс клиента",
         "duration": "Длительность звонка",
         "deposit": "Открыл депозит"
