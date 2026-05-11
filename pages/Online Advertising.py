@@ -481,6 +481,103 @@ with barchart_container:
 
 
 
-# --- Автообновление ---
+with roas_pred:
+    slt.subheader("Прогноз окупаемости рекламного размещения")
+    slt.caption(
+        "Произведите оценку вашего размещения на разных платформах по заданным параметрам"
+    )
+
+    forecast_min_date, forecast_max_date = get_dataset_forecast_bounds()
+    default_start_date = forecast_min_date
+    default_end_date = min(
+        forecast_max_date,
+        default_start_date + timedelta(days=30)
+    )
+
+    with slt.form("online_campaign_forecast_form"):
+        adv_col_1, adv_col_2, adv_col_3 = slt.columns(3, gap="large")
+
+        with adv_col_1:
+            budget = slt.number_input(
+                "Бюджет кампании ($)",
+                min_value=1.0,
+                value=1000.0,
+                step=100.0,
+                key="campaign_budget"
+            )
+
+        with adv_col_2:
+            start_dt = slt.date_input(
+                "Дата начала",
+                value=default_start_date,
+                min_value=forecast_min_date,
+                max_value=forecast_max_date,
+                key="campaign_start_date"
+            )
+            default_end_for_start = max(start_dt, default_end_date)
+            end_dt = slt.date_input(
+                "Дата окончания",
+                value=default_end_for_start,
+                min_value=start_dt,
+                max_value=forecast_max_date,
+                key="campaign_end_date"
+            )
+
+        with adv_col_3:
+            banner = slt.selectbox(
+                "Формат баннера",
+                sorted(daf["banner"].dropna().unique()),
+                key="forecast_banner"
+            )
+            placement = adv_selectbox(
+                "Площадка",
+                "placement",
+                sorted(daf["placement"].dropna().unique()),
+                key="forecast_placement"
+            )
+
+        submitted_roas = slt.form_submit_button("Рассчитать прогноз", type="primary", use_container_width=True)
+
+    if submitted_roas:
+        campaign_days = build_campaign_days(start_dt, end_dt, banner, placement)
+        forecast_model = get_campaign_forecast_model(daf, FORECAST_MODEL_CACHE_VERSION)
+        forecast = predict_campaign_forecast(
+            forecast_model,
+            campaign_days=campaign_days,
+            budget=budget
+        )
+
+        roas_col_1, roas_col_2, roas_col_3, roas_col_4 = slt.columns(4, gap="large")
+
+        with roas_col_1:
+            slt.metric("Ожидаемые показы", f"{forecast['expected_displays']:,.0f}")
+
+        with roas_col_2:
+            slt.metric("Ожидаемые клики", f"{forecast['expected_clicks']:,.0f}")
+
+        with roas_col_3:
+            slt.metric("ROI", f"{forecast['roi_percent']:.1f}%")
+
+        with roas_col_4:
+            slt.metric("Прогноз выручки", f"${forecast['expected_sales']:,.2f}")
+
+        slt.progress(min(max(forecast["roas"] / 3, 0), 1.0))
+
+        if forecast["roi_percent"] >= 50:
+            slt.success("Высокая ожидаемая окупаемость размещения")
+        elif forecast["roi_percent"] >= 0:
+            slt.warning("Ожидаемая окупаемость около точки безубыточности")
+        else:
+            slt.error("Ожидаемая окупаемость ниже бюджета кампании")
+
+        slt.caption(
+            f"Период: {forecast['duration_days']} дней. "
+            f"ROAS: {forecast['roas']:.2f}. "
+            f"Дневной бюджет: ${forecast['daily_budget']:,.2f}. "
+            f"Прогноз построен для периода {forecast_min_date:%d.%m.%Y} - {forecast_max_date:%d.%m.%Y} "
+            "по месяцам, представленным в датасете: апрель, май и июнь."
+        )
+
+
 # time.sleep(5)
 # slt.rerun()
