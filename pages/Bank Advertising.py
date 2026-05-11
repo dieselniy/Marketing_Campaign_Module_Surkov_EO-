@@ -390,6 +390,45 @@ VAL_LABLS = {
     }
 }
 
+with segment_panel:
+    slt.subheader("Отклик по профессиям")
+
+    all_jobs = sorted(bank_daf["job"].dropna().unique())
+    picked_jobs = slt.multiselect(
+        "Профессии клиентов:",
+        options=all_jobs,
+        default=all_jobs,
+        key="bank_job_filter",
+        format_func=lambda value: VAL_LABLS["job"].get(value, value)
+    )
+
+    if not picked_jobs:
+        slt.warning("Выберите хотя бы одну профессию")
+        slt.stop()
+
+    job_reply = (
+        bank_daf[bank_daf["job"].isin(picked_jobs)]
+        .groupby(["job", "deposit"], as_index=False)
+        .size()
+        .rename(columns={
+            "job": "Профессия",
+            "deposit": "Депозит",
+            "size": "Количество клиентов"
+        })
+    )
+    job_reply["Депозит"] = job_reply["Депозит"].map({
+        "yes": "Да",
+        "no": "Нет"
+    })
+
+    slt.bar_chart(
+        job_reply,
+        x="Профессия",
+        y="Количество клиентов",
+        color="Депозит"
+    )
+
+
 with conversion_panel:
     slt.subheader("Лучшие клиентские группы")
 
