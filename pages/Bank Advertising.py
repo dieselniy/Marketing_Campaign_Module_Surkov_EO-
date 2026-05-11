@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import streamlit as slt
 from plotly.subplots import make_subplots
 from src.auth import init_session_state, require_login, check_session
+from ml_bank_model import pred_client, train_gb_artifact
 
 file_path = "Kaggle Database/bank.csv"
 bank_daf = pds.read_csv(file_path)
