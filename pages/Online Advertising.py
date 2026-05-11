@@ -7,9 +7,9 @@ from sklearn.ensemble import RandomForestRegressor
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import date, timedelta
+from ml_online_model import predict_campaign_forecast, train_campaign_forecast
 
 file_path = "Kaggle Database/online_advertising_performance_data.csv"
-
 daf = pds.read_csv(file_path)
 # --- Инициализация session_state ---
 init_session_state()
