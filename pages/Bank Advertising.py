@@ -397,7 +397,7 @@ def bank_ml_artif(path):
 with driver_panel:
     slt.subheader("Топ 10 факторов открытия депозита")
 
-    model_artifact = bank_ml_artif(str(data_path))
+    model_artifact = bank_ml_artif(str(file_path))
     leading_features = model_artifact["feature_importance"].head(10).copy()
     leading_features.columns = ["Фактор", "Важность"]
 
