@@ -390,6 +390,25 @@ VAL_LABLS = {
     }
 }
 
+def bank_ml_artif(path):
+    artifact, *_ = train_gb_artifact(path)
+    return artifact
+
+with driver_panel:
+    slt.subheader("Топ 10 факторов открытия депозита")
+
+    model_artifact = bank_ml_artif(str(data_path))
+    leading_features = model_artifact["feature_importance"].head(10).copy()
+    leading_features.columns = ["Фактор", "Важность"]
+
+    slt.bar_chart(
+        leading_features,
+        x="Фактор",
+        y="Важность",
+        color="Фактор"
+    )
+
+
 def loc_selctbox(label, field_name, options, key, index=0):
     labels = VAL_LABLS[field_name]
     return slt.selectbox(
