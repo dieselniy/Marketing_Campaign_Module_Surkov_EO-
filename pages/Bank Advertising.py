@@ -472,7 +472,7 @@ def bank_ml_artif(path):
     return artifact
 
 with driver_panel:
-    slt.subheader("Топ 10 факторов открытия депозита")
+    slt.subheader("Топ 10 факторов влияющих на открытие депозита")
 
     model_artifact = bank_ml_artif(str(file_path))
     leading_features = model_artifact["feature_importance"].head(10).copy()
