@@ -1,6 +1,7 @@
 import numpy as npy
 import pandas as pds
 import plotly.graph_objects as go
+import plotly.express as px
 import streamlit as slt
 from plotly.subplots import make_subplots
 from src.auth import init_session_state, require_login, check_session
@@ -484,6 +485,67 @@ with driver_panel:
         y="Важность",
         color="Фактор"
     )
+
+
+with balance_reason_panel:
+    slt.subheader("Факторы влияющие на баланс клиента")
+
+    balance_reason_view = (
+        bank_daf[["balance", "duration", "marital", "education", "loan"]]
+        .dropna()
+        .copy()
+    )
+    balance_reason_view["Семейное положение"] = balance_reason_view["marital"].map(VAL_LABLS["marital"])
+    balance_reason_view["Образование"] = balance_reason_view["education"].map(VAL_LABLS["education"])
+    balance_reason_view["Персональный заем"] = balance_reason_view["loan"].map(VAL_LABLS["loan"])
+    balance_reason_view = balance_reason_view.rename(columns={
+        "balance": "Баланс",
+        "duration": "Длительность звонка"
+    })
+
+    fig = px.scatter(
+        balance_reason_view,
+        x="Длительность звонка",
+        y="Баланс",
+        color="Семейное положение",
+        marginal_x="box",
+        marginal_y="violin",
+        hover_data=["Семейное положение", "Образование", "Персональный заем"],
+        color_discrete_sequence=["#636EFA", "#EF553B", "#00CC96"],
+        title="Влияние факторов на баланс клиента"
+    )
+    fig.update_traces(marker=dict(size=6, opacity=0.65), selector=dict(mode="markers"))
+    fig.update_layout(
+        height=560,
+        template="plotly_dark",
+        title=dict(
+            text="Возможные причины низкого баланса",
+            y=0.96,
+            x=0.5,
+            xanchor="center",
+            yanchor="top"
+        ),
+        xaxis_title="Длительность звонка, сек.",
+        yaxis_title="Баланс",
+        legend_title="Семейное положение",
+        font=dict(
+            family="Arial",
+            size=15
+        ),
+        margin=dict(l=20, r=20, t=70, b=30)
+    )
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=False)
+
+    slt.plotly_chart(fig, use_container_width=True)
+    slt.markdown(
+        """
+        - **Семейное положение:** распределение баланса отличается между группами, поэтому этот признак полезно учитывать при сегментации клиентов.
+        - **Образование:** уровень образования может быть связан с финансовым профилем клиента и размером остатка на счете.
+        - **Займы:** наличие персонального займа часто снижает свободный остаток и может объяснять низкий баланс.
+        """
+    )
+
 
 
 def loc_selctbox(label, field_name, options, key, index=0):
