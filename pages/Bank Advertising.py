@@ -486,6 +486,10 @@ with driver_panel:
         color="Фактор"
     )
 
+balance_reason_panel = slt.container(
+    height=760,
+    border=True
+)
 
 with balance_reason_panel:
     slt.subheader("Факторы влияющие на баланс клиента")
