@@ -453,7 +453,7 @@ with overview_panel:
 
 
 with profile_panel:
-    slt.subheader("Все факторы открытия депозита с duration")
+    slt.subheader("Факторы внесения депозита")
 
     deposit_factors = bank_stats["deposit_factor_importance"]
     slt.dataframe(
