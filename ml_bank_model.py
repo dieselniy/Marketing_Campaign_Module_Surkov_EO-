@@ -22,14 +22,14 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
-MODEL_VERSION = "bank_deposit_normal_dialogue_v5"
+modelver = "bank_dep_v5"
 
-PROJECT_DIR = Path(__file__).resolve().parent
-DEFAULT_DATA_PATH = PROJECT_DIR / "Kaggle Database" / "bank.csv"
+projdir = Path(__file__).resolve().parent
+defpath = projdir / "Kaggle Database" / "bank.csv"
 
-TARGET_COLUMN = "deposit"
+targcol = "deposit"
 
-MODEL_DROP_COLUMNS = [
+dropcols = [
     "balance",
     "duration",
     "campaign",
@@ -39,27 +39,27 @@ MODEL_DROP_COLUMNS = [
     "day",
 ]
 
-NORMAL_DIALOGUE_MIN_DURATION = 180
-NORMAL_DIALOGUE_MAX_DURATION = 720
-CONTACT_PROFILE = "normal_dialogue"
+normdial_min = 180
+normdial_max = 720
+contactprof = "norm dial"
 
-RANDOM_STATE = 42
-TEST_SIZE = 0.2
-VALIDATION_SIZE = 0.25
+seednum = 42
+testsize = 0.2
+valsize = 0.25
 
 
-def fix_seed(seed=RANDOM_STATE):
+def fix_seed(seed=seednum):
     random.seed(seed)
     np.random.seed(seed)
 
 
 def resolve_data_path(fp=None):
     if fp is None:
-        return DEFAULT_DATA_PATH
+        return defpath
 
     path = Path(fp)
     if not path.is_absolute():
-        path = PROJECT_DIR / path
+        path = projdir / path
 
     return path
 
@@ -76,36 +76,36 @@ def load_dt(fp=None):
     return pd.read_csv(path, usecols=range(17))
 
 
-def apply_contact_profile(df, contact_profile=CONTACT_PROFILE):
-    if contact_profile != "normal_dialogue" or "duration" not in df.columns:
+def apply_contactprof(df, contactprof_val=contactprof):
+    if contactprof_val != "norm dial" or "duration" not in df.columns:
         return df.copy(), {
-            "contact_profile": "all_contacts",
+            "contactprof": "all contacts",
             "source_rows": len(df),
             "training_rows": len(df),
-            "normal_duration_min": None,
-            "normal_duration_max": None,
+            "normdial_min": None,
+            "normdial_max": None,
         }
 
     duration = pd.to_numeric(df["duration"], errors="coerce")
-    normal_dialogue_mask = duration.between(
-        NORMAL_DIALOGUE_MIN_DURATION,
-        NORMAL_DIALOGUE_MAX_DURATION,
+    normdial_mask = duration.between(
+        normdial_min,
+        normdial_max,
         inclusive="both",
     )
-    filtered = df[normal_dialogue_mask].copy()
+    filtered = df[normdial_mask].copy()
 
     return filtered, {
-        "contact_profile": contact_profile,
+        "contactprof": contactprof_val,
         "source_rows": len(df),
         "training_rows": len(filtered),
-        "normal_duration_min": NORMAL_DIALOGUE_MIN_DURATION,
-        "normal_duration_max": NORMAL_DIALOGUE_MAX_DURATION,
+        "normdial_min": normdial_min,
+        "normdial_max": normdial_max,
     }
 
 
 def get_drop_columns(drop_columns=None, dd=False):
     if drop_columns is None:
-        columns = list(MODEL_DROP_COLUMNS)
+        columns = list(dropcols)
     else:
         columns = list(drop_columns)
 
@@ -115,7 +115,7 @@ def get_drop_columns(drop_columns=None, dd=False):
     return columns
 
 
-def prep_xy(df, tgt=TARGET_COLUMN, dd=False, drop_columns=None):
+def prep_xy(df, tgt=targcol, dd=False, drop_columns=None):
     work = df.copy()
     columns_to_drop = [
         column
@@ -135,7 +135,7 @@ def prep_xy(df, tgt=TARGET_COLUMN, dd=False, drop_columns=None):
     return X, y, cat_cols, num_cols
 
 
-def split_dt(X, y, test_size=TEST_SIZE, seed=RANDOM_STATE):
+def split_dt(X, y, test_size=testsize, seed=seednum):
     return train_test_split(
         X,
         y,
@@ -163,7 +163,7 @@ def mk_gb(preprocessor):
             n_estimators=180,
             learning_rate=0.05,
             max_depth=3,
-            random_state=RANDOM_STATE,
+            random_state=seednum,
         )),
     ])
 
@@ -181,7 +181,7 @@ def mk_model(model_key, cat_cols, num_cols):
             ("clf", LogisticRegression(
                 max_iter=3000,
                 class_weight="balanced",
-                random_state=RANDOM_STATE,
+                random_state=seednum,
             )),
         ])
 
@@ -192,7 +192,7 @@ def mk_model(model_key, cat_cols, num_cols):
                 n_estimators=300,
                 min_samples_leaf=5,
                 class_weight="balanced",
-                random_state=RANDOM_STATE,
+                random_state=seednum,
                 n_jobs=-1,
             )),
         ])
@@ -277,7 +277,7 @@ def mk_artf(
     input_cols,
     excluded_columns,
     threshold_info,
-    contact_context,
+    contactctx,
 ):
     return {
         "model": model,
@@ -287,8 +287,8 @@ def mk_artf(
         "num_cols": num_cols,
         "input_cols": input_cols,
         "excluded_columns": excluded_columns,
-        "model_version": MODEL_VERSION,
-        "contact_context": contact_context,
+        "modelver": modelver,
+        "contactctx": contactctx,
         "decision_threshold": float(threshold_info["threshold"]),
         "threshold_validation_metrics": threshold_info,
         "model_key": "gradient_boosting",
@@ -302,13 +302,13 @@ def build_training_data(
     fp=None,
     dd=False,
     drop_columns=None,
-    contact_profile=CONTACT_PROFILE,
+    contactprof_val=contactprof,
 ):
     source_df = load_dt(fp)
 
-    filtered_df, contact_context = apply_contact_profile(
+    filtered_df, contactctx = apply_contactprof(
         source_df,
-        contact_profile=contact_profile,
+        contactprof_val=contactprof_val,
     )
 
     excluded_columns = [
@@ -326,7 +326,7 @@ def build_training_data(
     return {
         "source_df": source_df,
         "filtered_df": filtered_df,
-        "contact_context": contact_context,
+        "contactctx": contactctx,
         "excluded_columns": excluded_columns,
         "X": X,
         "y": y,
@@ -339,15 +339,15 @@ def train_gb_artifact(
     fp=None,
     dd=False,
     drop_columns=None,
-    contact_profile=CONTACT_PROFILE,
+    contactprof_val=contactprof,
 ):
-    fix_seed(RANDOM_STATE)
+    fix_seed(seednum)
 
     data = build_training_data(
         fp=fp,
         dd=dd,
         drop_columns=drop_columns,
-        contact_profile=contact_profile,
+        contactprof_val=contactprof_val,
     )
 
     X = data["X"]
@@ -360,7 +360,7 @@ def train_gb_artifact(
     X_fit, X_valid, y_fit, y_valid = split_dt(
         X_train,
         y_train,
-        test_size=VALIDATION_SIZE,
+        test_size=valsize,
         seed=43,
     )
 
@@ -400,7 +400,7 @@ def train_gb_artifact(
         input_cols=X.columns.tolist(),
         excluded_columns=data["excluded_columns"],
         threshold_info=threshold_info,
-        contact_context=data["contact_context"],
+        contactctx=data["contactctx"],
     )
 
     return artifact, X_train, X_test, y_test, y_pred, y_proba, report, matrix
@@ -410,13 +410,13 @@ def compare_models(
     fp=None,
     dd=False,
     drop_columns=None,
-    contact_profile=CONTACT_PROFILE,
+    contactprof_val=contactprof,
 ):
     data = build_training_data(
         fp=fp,
         dd=dd,
         drop_columns=drop_columns,
-        contact_profile=contact_profile,
+        contactprof_val=contactprof_val,
     )
 
     X = data["X"]
@@ -462,14 +462,14 @@ def train_gb(
     fp=None,
     dd=False,
     drop_columns=None,
-    contact_profile=CONTACT_PROFILE,
+    contactprof_val=contactprof,
 ):
     artifact, X_train, X_test, y_test, y_pred, y_proba, report, matrix = (
         train_gb_artifact(
             fp=fp,
             dd=dd,
             drop_columns=drop_columns,
-            contact_profile=contact_profile,
+            contactprof_val=contactprof_val,
         )
     )
 
@@ -480,7 +480,7 @@ def train_gb(
         "feature_importance": artifact["feature_importance"],
         "excluded_columns": artifact["excluded_columns"],
         "input_cols": artifact["input_cols"],
-        "contact_context": artifact["contact_context"],
+        "contactctx": artifact["contactctx"],
         "decision_threshold": artifact["decision_threshold"],
         "threshold_validation_metrics": artifact["threshold_validation_metrics"],
         "X_train_shape": X_train.shape,
@@ -495,13 +495,13 @@ def train_mdl(
     fp=None,
     dd=False,
     drop_columns=None,
-    contact_profile=CONTACT_PROFILE,
+    contactprof_val=contactprof,
 ):
     return train_gb(
         fp=fp,
         dd=dd,
         drop_columns=drop_columns,
-        contact_profile=contact_profile,
+        contactprof_val=contactprof_val,
     )
 
 
@@ -563,9 +563,9 @@ if __name__ == "__main__":
     result = train_gb()
     comparison = compare_models()
 
-    print("MODEL_VERSION:", MODEL_VERSION)
-    print("DATA_PATH:", DEFAULT_DATA_PATH)
-    print("Контекст контакта:", result["contact_context"])
+    print("modelver:", modelver)
+    print("defpath:", defpath)
+    print("contactctx:", result["contactctx"])
     print("Используемые входы:", result["input_cols"])
     print("Исключенные поля:", result["excluded_columns"])
     print("Размер обучающей выборки:", result["X_train_shape"])
