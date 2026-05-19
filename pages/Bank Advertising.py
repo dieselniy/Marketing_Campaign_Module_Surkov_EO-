@@ -711,7 +711,7 @@ with predictor_panel:
         }
 
         result = pred_client(
-            cd=client,
+            client_data=client,
             model_artifact=model_artifact
         )
 
