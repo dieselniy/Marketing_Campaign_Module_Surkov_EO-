@@ -5,9 +5,7 @@ import numpy as np
 import pandas as pd
 
 from sklearn.compose import ColumnTransformer
-from sklearn.dummy import DummyClassifier
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -19,10 +17,10 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder
 
 
-MOD_VERS = "bank_dep_v5"
+modelver = "bank_dep_v5"
 
 projdir = Path(__file__).resolve().parent
 defpath = projdir / "Kaggle Database" / "bank.csv"
@@ -145,13 +143,11 @@ def split_dt(X, y, test_size=testsize, seed=seednum):
     )
 
 
-def mk_prep(cat_cols, num_cols, scale_numeric=False):
-    numeric_transformer = StandardScaler() if scale_numeric else "passthrough"
-
+def mk_prep(cat_cols, num_cols):
     return ColumnTransformer(
         transformers=[
             ("cat", mk_ohe(), cat_cols),
-            ("num", numeric_transformer, num_cols),
+            ("num", "passthrough", num_cols),
         ]
     )
 
@@ -166,41 +162,6 @@ def mk_gb(preprocessor):
             random_state=seednum,
         )),
     ])
-
-
-def mk_model(model_key, cat_cols, num_cols):
-    if model_key == "dummy":
-        return Pipeline([
-            ("prep", mk_prep(cat_cols, num_cols)),
-            ("clf", DummyClassifier(strategy="most_frequent")),
-        ])
-
-    if model_key == "logistic_regression":
-        return Pipeline([
-            ("prep", mk_prep(cat_cols, num_cols, scale_numeric=True)),
-            ("clf", LogisticRegression(
-                max_iter=3000,
-                class_weight="balanced",
-                random_state=seednum,
-            )),
-        ])
-
-    if model_key == "random_forest":
-        return Pipeline([
-            ("prep", mk_prep(cat_cols, num_cols)),
-            ("clf", RandomForestClassifier(
-                n_estimators=300,
-                min_samples_leaf=5,
-                class_weight="balanced",
-                random_state=seednum,
-                n_jobs=-1,
-            )),
-        ])
-
-    if model_key == "gradient_boosting":
-        return mk_gb(mk_prep(cat_cols, num_cols))
-
-    raise ValueError(f"Unknown model_key: {model_key}")
 
 
 def threshold_metrics(y_true, y_proba, threshold):
@@ -287,7 +248,7 @@ def mk_artf(
         "num_cols": num_cols,
         "input_cols": input_cols,
         "excluded_columns": excluded_columns,
-        "MOD_VERS": MOD_VERS,
+        "modelver": modelver,
         "contactctx": contactctx,
         "decision_threshold": float(threshold_info["threshold"]),
         "threshold_validation_metrics": threshold_info,
@@ -364,11 +325,7 @@ def train_gb_artifact(
         seed=42,
     )
 
-    threshold_probe = mk_model(
-        "gradient_boosting",
-        cat_cols,
-        num_cols,
-    )
+    threshold_probe = mk_gb(mk_prep(cat_cols, num_cols))
     threshold_probe.fit(X_fit, y_fit)
 
     threshold_info = optimize_threshold(
@@ -377,11 +334,7 @@ def train_gb_artifact(
         y_valid,
     )
 
-    model = mk_model(
-        "gradient_boosting",
-        cat_cols,
-        num_cols,
-    )
+    model = mk_gb(mk_prep(cat_cols, num_cols))
     model.fit(X_train, y_train)
 
     metrics, report, matrix, y_pred, y_proba = eval_mdl(
@@ -404,58 +357,6 @@ def train_gb_artifact(
     )
 
     return artifact, X_train, X_test, y_test, y_pred, y_proba, report, matrix
-
-
-def compare_models(
-    fp=None,
-    dd=False,
-    drop_columns=None,
-    contactprof_val=contactprof,
-):
-    data = build_training_data(
-        fp=fp,
-        dd=dd,
-        drop_columns=drop_columns,
-        contactprof_val=contactprof_val,
-    )
-
-    X = data["X"]
-    y = data["y"]
-    cat_cols = data["cat_cols"]
-    num_cols = data["num_cols"]
-
-    X_train, X_test, y_train, y_test = split_dt(X, y)
-
-    models = {
-        "Dummy baseline": "dummy",
-        "Logistic Regression": "logistic_regression",
-        "Random Forest": "random_forest",
-        "Gradient Boosting": "gradient_boosting",
-    }
-
-    rows = []
-
-    for model_name, model_key in models.items():
-        model = mk_model(model_key, cat_cols, num_cols)
-        model.fit(X_train, y_train)
-
-        y_proba = model.predict_proba(X_test)[:, 1]
-        y_pred = model.predict(X_test)
-
-        rows.append({
-            "model": model_name,
-            "accuracy": accuracy_score(y_test, y_pred),
-            "precision": precision_score(y_test, y_pred, zero_division=0),
-            "recall": recall_score(y_test, y_pred, zero_division=0),
-            "f1": f1_score(y_test, y_pred, zero_division=0),
-            "roc_auc": roc_auc_score(y_test, y_proba),
-        })
-
-    return (
-        pd.DataFrame(rows)
-        .sort_values(by="roc_auc", ascending=False)
-        .reset_index(drop=True)
-    )
 
 
 def train_gb(
@@ -561,9 +462,8 @@ def pred_client(client_data=None, model_artifact=None, cd=None):
 
 if __name__ == "__main__":
     result = train_gb()
-    comparison = compare_models()
 
-    print("MOD_VERS:", MOD_VERS)
+    print("modelver:", modelver)
     print("defpath:", defpath)
     print("contactctx:", result["contactctx"])
     print("Используемые входы:", result["input_cols"])
@@ -571,9 +471,6 @@ if __name__ == "__main__":
     print("Размер обучающей выборки:", result["X_train_shape"])
     print("Размер тестовой выборки:", result["X_test_shape"])
     print("Порог решения:", result["decision_threshold"])
-
-    print("\nСравнение моделей:")
-    print(comparison.round(4))
 
     print("\nGradient Boosting:")
     print(result["metrics"])
