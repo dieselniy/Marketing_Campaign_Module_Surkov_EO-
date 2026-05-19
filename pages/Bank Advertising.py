@@ -4,10 +4,11 @@ import pandas as pds
 import plotly.express as px
 import streamlit as slt
 from sklearn.ensemble import RandomForestClassifier
-from ml_bank_model import pred_client, train_gb_artifact
+from ml_bank_model import MODEL_VERSION, pred_client, train_gb_artifact
 from src.auth import init_session_state, require_login, check_session
 
-file_path = "Kaggle Database/bank.csv"
+
+file_path = r"C:\Users\egors\OneDrive\Рабочий стол\GRADUATE\Kaggle Database\bank.csv"
 bank_daf = pds.read_csv(file_path)
 bank_source_columns = bank_daf.columns.tolist()
 init_session_state()
@@ -119,13 +120,11 @@ with main_cont:
 
     with left_lane:
         profile_panel = slt.container(
-            height=600,
             border=True
         )
 
     with right_lane:
         segment_panel = slt.container(
-            height=600,
             border=True
         )
 
@@ -135,13 +134,11 @@ with main_cont:
 
     with lower_left_lane:
         conversion_panel = slt.container(
-            height=500,
             border=True
         )
 
     with lower_right_lane:
         driver_panel = slt.container(
-            height=500,
             border=True
         )
 
@@ -172,7 +169,7 @@ def loc_selctbox(label, field_name, options, key, index=0):
 
 
 @slt.cache_resource
-def bank_ml_artif(path):
+def bank_ml_artif(path, model_version):
     artifact, *_ = train_gb_artifact(path)
     return artifact
 
@@ -272,29 +269,23 @@ def build_bank_stats(daf, source_columns):
     if not active_balance.empty:
         top_occupation = active_balance.iloc[0]["job"]
 
-    marital_work = balance_work[["marital", "balance", "deposit", "deposit_flag", "job"]].copy()
-    if top_occupation is not None:
-        marital_top_occupation = marital_work[marital_work["job"] == top_occupation].copy()
-    else:
-        marital_top_occupation = marital_work.copy()
-
-    marital_balance_deposit = marital_top_occupation[
-        ["marital", "balance", "deposit", "deposit_flag"]
+    marital_balance_deposit = balance_work[
+        ["job", "marital", "balance", "deposit", "deposit_flag"]
     ].copy()
 
     marital_deposit_summary = (
         marital_balance_deposit
-        .groupby(["marital", "deposit"], as_index=False)
+        .groupby(["job", "marital", "deposit"], as_index=False)
         .agg(
             clients=("deposit_flag", "count"),
             avg_balance=("balance", "mean"),
             median_balance=("balance", "median"),
         )
-        .sort_values(by=["marital", "deposit"])
+        .sort_values(by=["job", "marital", "deposit"])
     )
 
     marital_conversion = (
-        marital_work
+        marital_balance_deposit
         .groupby("marital", as_index=False)
         .agg(
             clients=("deposit_flag", "count"),
@@ -453,7 +444,7 @@ with overview_panel:
 
 
 with profile_panel:
-    slt.subheader("Факторы внесения депозита")
+    slt.subheader("Все факторы открытия депозита с duration")
 
     deposit_factors = bank_stats["deposit_factor_importance"]
     slt.dataframe(
@@ -467,12 +458,43 @@ with profile_panel:
 with segment_panel:
     slt.subheader("Семейное положение, баланс и депозит")
 
-    marital_balance_data = bank_stats["marital_balance_deposit_data"]
-    marital_summary = bank_stats["marital_deposit_summary"]
+    occupation_options = bank_stats["occupation_active_balance"]["job"].tolist()
     top_occupation = bank_stats["top_active_balance_occupation"]
+    default_occupation_index = (
+        occupation_options.index(top_occupation)
+        if top_occupation in occupation_options
+        else 0
+    )
 
-    if top_occupation is not None:
-        slt.caption(f"Сегмент профессии с максимальным активным балансом: {top_occupation}")
+    selected_occupation = slt.selectbox(
+        "Профессия",
+        options=occupation_options,
+        index=default_occupation_index,
+        key="bank_marital_occupation",
+        format_func=lambda value: VAL_LABLS["job"].get(value, value)
+    )
+
+    marital_balance_data = (
+        bank_stats["marital_balance_deposit_data"]
+        [bank_stats["marital_balance_deposit_data"]["job"] == selected_occupation]
+        .copy()
+    )
+
+    marital_summary = (
+        marital_balance_data
+        .groupby(["marital", "deposit"], as_index=False)
+        .agg(
+            clients=("deposit_flag", "count"),
+            avg_balance=("balance", "mean"),
+            median_balance=("balance", "median"),
+        )
+        .sort_values(by=["marital", "deposit"])
+    )
+
+    slt.caption(
+        "Выбранная профессия: "
+        f"{VAL_LABLS['job'].get(selected_occupation, selected_occupation)}"
+    )
 
     if marital_balance_data is not None and not marital_balance_data.empty:
         fig = px.box(
@@ -495,7 +517,7 @@ with segment_panel:
 
 
 with conversion_panel:
-    slt.subheader("Конверсия в депозит по семейному положению")
+    slt.subheader("Влияние на депозит семейного положения")
 
     marital_conversion = bank_stats["marital_conversion"]
     slt.dataframe(
@@ -545,7 +567,7 @@ with balance_reason_panel:
     low_balance_limit = bank_stats["low_balance_limit"]
     low_balance_segments = bank_stats["low_balance_segments"]
 
-    slt.subheader(f"Факторы низкого баланса: порог {low_balance_limit:.2f}")
+    slt.subheader(f"Факторы низкого баланса")
     slt.dataframe(
         rounded_table(low_balance_factors),
         use_container_width=True,
@@ -586,14 +608,17 @@ with balance_reason_panel:
 
 with predictor_panel:
     slt.subheader("Прогноз открытия депозита")
-    model_artifact = bank_ml_artif(str(file_path))
+    model_artifact = bank_ml_artif(str(file_path), MODEL_VERSION)
     slt.caption(
-        "Заполните параметры клиента и оцените вероятность положительного отклика "
-        "по обученной модели Gradient Boosting."
+        "Заполните параметры, которые известны до контакта с клиентом. "
+        "Модель Gradient Boosting не использует баланс, длительность звонка "
+        "день контакта и историю прошлых контактов. Прогноз строится при "
+        "допущении, что контакт прошёл по нормальному сценарию: диалог длился "
+        "примерно 3-12 минут."
     )
 
     with slt.form("bank_deposit_prediction_form"):
-        client_col_1, client_col_2, client_col_3, client_col_4 = slt.columns(4, gap="large")
+        client_col_1, client_col_2, client_col_3 = slt.columns(3, gap="large")
 
         with client_col_1:
             age = slt.number_input(
@@ -634,11 +659,6 @@ with predictor_panel:
                 ["no", "yes"],
                 key="predict_default"
             )
-            balance = slt.number_input(
-                "Баланс (в долларах)",
-                value=1000,
-                key="predict_balance"
-            )
             housing = loc_selctbox(
                 "Ипотека",
                 "housing",
@@ -660,13 +680,6 @@ with predictor_panel:
                 ["cellular", "telephone", "unknown"],
                 key="predict_contact"
             )
-            day = slt.number_input(
-                "День контакта",
-                min_value=1,
-                max_value=31,
-                value=15,
-                key="predict_day"
-            )
             month = loc_selctbox(
                 "Месяц",
                 "month",
@@ -676,38 +689,6 @@ with predictor_panel:
                 ],
                 index=4,
                 key="predict_month"
-            )
-            duration = slt.number_input(
-                "Длительность звонка",
-                min_value=0,
-                value=300,
-                key="predict_duration"
-            )
-
-        with client_col_4:
-            campaign = slt.number_input(
-                "Контактов в кампании",
-                min_value=1,
-                value=2,
-                key="predict_campaign"
-            )
-            pdays = slt.number_input(
-                "Дней после прошлого контакта",
-                value=-1,
-                key="predict_pdays"
-            )
-            previous = slt.number_input(
-                "Прошлых контактов",
-                min_value=0,
-                value=0,
-                key="predict_previous"
-            )
-            poutcome = loc_selctbox(
-                "Результат прошлой кампании",
-                "poutcome",
-                ["failure", "other", "success", "unknown"],
-                index=3,
-                key="predict_poutcome"
             )
 
         submitted_prediction = slt.form_submit_button(
@@ -723,17 +704,10 @@ with predictor_panel:
             "marital": marital,
             "education": education,
             "default": default,
-            "balance": balance,
             "housing": housing,
             "loan": loan,
             "contact": contact,
-            "day": day,
-            "month": month,
-            "duration": duration,
-            "campaign": campaign,
-            "pdays": pdays,
-            "previous": previous,
-            "poutcome": poutcome
+            "month": month
         }
 
         result = pred_client(
