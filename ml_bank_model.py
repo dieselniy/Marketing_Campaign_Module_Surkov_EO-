@@ -361,7 +361,7 @@ def train_gb_artifact(
         X_train,
         y_train,
         test_size=valsize,
-        seed=43,
+        seed=42,
     )
 
     threshold_probe = mk_model(
