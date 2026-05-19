@@ -4,7 +4,7 @@ import pandas as pds
 import plotly.express as px
 import streamlit as slt
 from sklearn.ensemble import RandomForestClassifier
-from ml_bank_model import MODEL_VERSION, pred_client, train_gb_artifact
+from ml_bank_model import modelver, pred_client, train_gb_artifact
 from src.auth import init_session_state, require_login, check_session
 
 
@@ -169,7 +169,7 @@ def loc_selctbox(label, field_name, options, key, index=0):
 
 
 @slt.cache_resource
-def bank_ml_artif(path, model_version):
+def bank_ml_artif(path, modelver_val):
     artifact, *_ = train_gb_artifact(path)
     return artifact
 
@@ -608,7 +608,7 @@ with balance_reason_panel:
 
 with predictor_panel:
     slt.subheader("Прогноз открытия депозита")
-    model_artifact = bank_ml_artif(str(file_path), MODEL_VERSION)
+    model_artifact = bank_ml_artif(str(file_path), modelver)
     slt.caption(
         "Заполните параметры, которые известны до контакта с клиентом. "
         "Модель Gradient Boosting не использует баланс, длительность звонка "
