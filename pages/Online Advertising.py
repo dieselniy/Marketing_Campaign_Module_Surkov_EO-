@@ -48,7 +48,7 @@ with main_container:
 
     with col1:
         scatter_container = slt.container(
-            height=600,
+            height=760,
             border=True
         )
 
@@ -613,7 +613,23 @@ with scatter_container:
         scatter_df,
         x='Места размещения рекламных баннеров',
         y='ROI',
-    )    
+    )
+
+    placement_roi_df = (
+        scatter_df.groupby('Места размещения рекламных баннеров', as_index=False)
+        .agg(**{'Средний ROI': ('ROI', 'mean')})
+        .sort_values(by='Средний ROI', ascending=False)
+    )
+    placement_roi_df['Средний ROI'] = placement_roi_df['Средний ROI'].round(3)
+
+    slt.markdown("**Средний ROI по местам размещения**")
+    slt.dataframe(
+        placement_roi_df,
+        use_container_width=True,
+        hide_index=True,
+        height=220
+    )
+  
 
 
 with barchart_container:
