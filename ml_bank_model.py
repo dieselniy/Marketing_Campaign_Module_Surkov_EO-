@@ -20,7 +20,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 
-modelver = "bank_dep_v5"
+MOD_VERS = "bank_dep_v5"
 
 projdir = Path(__file__).resolve().parent
 defpath = projdir / "Kaggle Database" / "bank.csv"
