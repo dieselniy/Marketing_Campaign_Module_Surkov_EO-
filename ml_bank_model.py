@@ -1,10 +1,13 @@
 import random
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -16,8 +19,15 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+
+MODEL_VERSION = "bank_deposit_normal_dialogue_v5"
+
+PROJECT_DIR = Path(__file__).resolve().parent
+DEFAULT_DATA_PATH = PROJECT_DIR / "Kaggle Database" / "bank.csv"
+
+TARGET_COLUMN = "deposit"
 
 MODEL_DROP_COLUMNS = [
     "balance",
@@ -29,15 +39,29 @@ MODEL_DROP_COLUMNS = [
     "day",
 ]
 
-MODEL_VERSION = "bank_deposit_normal_dialogue_v4"
 NORMAL_DIALOGUE_MIN_DURATION = 180
 NORMAL_DIALOGUE_MAX_DURATION = 720
 CONTACT_PROFILE = "normal_dialogue"
 
+RANDOM_STATE = 42
+TEST_SIZE = 0.2
+VALIDATION_SIZE = 0.25
 
-def fix_seed(s=42):
-    random.seed(s)
-    np.random.seed(s)
+
+def fix_seed(seed=RANDOM_STATE):
+    random.seed(seed)
+    np.random.seed(seed)
+
+
+def resolve_data_path(fp=None):
+    if fp is None:
+        return DEFAULT_DATA_PATH
+
+    path = Path(fp)
+    if not path.is_absolute():
+        path = PROJECT_DIR / path
+
+    return path
 
 
 def mk_ohe():
@@ -47,8 +71,9 @@ def mk_ohe():
         return OneHotEncoder(handle_unknown="ignore", sparse=False)
 
 
-def load_dt(fp):
-    return pd.read_csv(fp, usecols=range(17))
+def load_dt(fp=None):
+    path = resolve_data_path(fp)
+    return pd.read_csv(path, usecols=range(17))
 
 
 def apply_contact_profile(df, contact_profile=CONTACT_PROFILE):
@@ -62,12 +87,12 @@ def apply_contact_profile(df, contact_profile=CONTACT_PROFILE):
         }
 
     duration = pd.to_numeric(df["duration"], errors="coerce")
-    mask = duration.between(
+    normal_dialogue_mask = duration.between(
         NORMAL_DIALOGUE_MIN_DURATION,
         NORMAL_DIALOGUE_MAX_DURATION,
         inclusive="both",
     )
-    filtered = df[mask].copy()
+    filtered = df[normal_dialogue_mask].copy()
 
     return filtered, {
         "contact_profile": contact_profile,
@@ -80,83 +105,102 @@ def apply_contact_profile(df, contact_profile=CONTACT_PROFILE):
 
 def get_drop_columns(drop_columns=None, dd=False):
     if drop_columns is None:
-        cols = list(MODEL_DROP_COLUMNS)
+        columns = list(MODEL_DROP_COLUMNS)
     else:
-        cols = list(drop_columns)
+        columns = list(drop_columns)
 
-    if dd and "duration" not in cols:
-        cols.append("duration")
+    if dd and "duration" not in columns:
+        columns.append("duration")
 
-    return cols
+    return columns
 
 
-def prep_xy(df, tgt="deposit", dd=False, drop_columns=None):
-    dt = df.copy()
-
-    cols_to_drop = [
-        col for col in get_drop_columns(drop_columns=drop_columns, dd=dd)
-        if col in dt.columns and col != tgt
+def prep_xy(df, tgt=TARGET_COLUMN, dd=False, drop_columns=None):
+    work = df.copy()
+    columns_to_drop = [
+        column
+        for column in get_drop_columns(drop_columns=drop_columns, dd=dd)
+        if column in work.columns and column != tgt
     ]
-    if cols_to_drop:
-        dt = dt.drop(columns=cols_to_drop)
 
-    y = dt[tgt].map({"no": 0, "yes": 1})
-    x = dt.drop(columns=[tgt])
+    if columns_to_drop:
+        work = work.drop(columns=columns_to_drop)
 
-    cat = x.select_dtypes(include="object").columns.tolist()
-    num = x.select_dtypes(exclude="object").columns.tolist()
+    y = work[tgt].map({"no": 0, "yes": 1})
+    X = work.drop(columns=[tgt])
 
-    return x, y, cat, num
+    cat_cols = X.select_dtypes(include="object").columns.tolist()
+    num_cols = X.select_dtypes(exclude="object").columns.tolist()
+
+    return X, y, cat_cols, num_cols
 
 
-def mk_prep(cat, num):
+def split_dt(X, y, test_size=TEST_SIZE, seed=RANDOM_STATE):
+    return train_test_split(
+        X,
+        y,
+        test_size=test_size,
+        stratify=y,
+        random_state=seed,
+    )
+
+
+def mk_prep(cat_cols, num_cols, scale_numeric=False):
+    numeric_transformer = StandardScaler() if scale_numeric else "passthrough"
+
     return ColumnTransformer(
         transformers=[
-            ("cat", mk_ohe(), cat),
-            ("num", "passthrough", num),
+            ("cat", mk_ohe(), cat_cols),
+            ("num", numeric_transformer, num_cols),
         ]
     )
 
 
-def mk_gb(pp):
+def mk_gb(preprocessor):
     return Pipeline([
-        ("prep", pp),
+        ("prep", preprocessor),
         ("clf", GradientBoostingClassifier(
             n_estimators=180,
             learning_rate=0.05,
             max_depth=3,
-            random_state=42,
+            random_state=RANDOM_STATE,
         )),
     ])
 
 
-def split_dt(x, y, ts=0.2, s=42):
-    return train_test_split(
-        x,
-        y,
-        test_size=ts,
-        stratify=y,
-        random_state=s,
-    )
+def mk_model(model_key, cat_cols, num_cols):
+    if model_key == "dummy":
+        return Pipeline([
+            ("prep", mk_prep(cat_cols, num_cols)),
+            ("clf", DummyClassifier(strategy="most_frequent")),
+        ])
 
+    if model_key == "logistic_regression":
+        return Pipeline([
+            ("prep", mk_prep(cat_cols, num_cols, scale_numeric=True)),
+            ("clf", LogisticRegression(
+                max_iter=3000,
+                class_weight="balanced",
+                random_state=RANDOM_STATE,
+            )),
+        ])
 
-def eval_mdl(mdl, xt, yt, nm="Gradient Boosting", threshold=0.5):
-    pr = mdl.predict_proba(xt)[:, 1]
-    yp = (pr >= threshold).astype(int)
+    if model_key == "random_forest":
+        return Pipeline([
+            ("prep", mk_prep(cat_cols, num_cols)),
+            ("clf", RandomForestClassifier(
+                n_estimators=300,
+                min_samples_leaf=5,
+                class_weight="balanced",
+                random_state=RANDOM_STATE,
+                n_jobs=-1,
+            )),
+        ])
 
-    mtr = {
-        "model": nm,
-        "accuracy": accuracy_score(yt, yp),
-        "precision": precision_score(yt, yp),
-        "recall": recall_score(yt, yp),
-        "f1": f1_score(yt, yp),
-        "roc_auc": roc_auc_score(yt, pr),
-    }
+    if model_key == "gradient_boosting":
+        return mk_gb(mk_prep(cat_cols, num_cols))
 
-    rpt = classification_report(yt, yp)
-    mx = confusion_matrix(yt, yp)
-
-    return mtr, rpt, mx, yp, pr
+    raise ValueError(f"Unknown model_key: {model_key}")
 
 
 def threshold_metrics(y_true, y_proba, threshold):
@@ -165,18 +209,18 @@ def threshold_metrics(y_true, y_proba, threshold):
     return {
         "threshold": float(threshold),
         "accuracy": accuracy_score(y_true, y_pred),
-        "precision": precision_score(y_true, y_pred),
-        "recall": recall_score(y_true, y_pred),
-        "f1": f1_score(y_true, y_pred),
+        "precision": precision_score(y_true, y_pred, zero_division=0),
+        "recall": recall_score(y_true, y_pred, zero_division=0),
+        "f1": f1_score(y_true, y_pred, zero_division=0),
     }
 
 
-def optimize_threshold(mdl, xv, yv):
-    pr = mdl.predict_proba(xv)[:, 1]
+def optimize_threshold(model, X_valid, y_valid):
+    y_proba = model.predict_proba(X_valid)[:, 1]
     thresholds = np.linspace(0.35, 0.65, 61)
 
     scores = [
-        threshold_metrics(yv, pr, threshold)
+        threshold_metrics(y_valid, y_proba, threshold)
         for threshold in thresholds
     ]
 
@@ -186,44 +230,63 @@ def optimize_threshold(mdl, xv, yv):
     )
 
 
-def feat_imp(mdl, n=20):
-    pp = mdl.named_steps["prep"]
-    clf = mdl.named_steps["clf"]
+def eval_mdl(model, X_test, y_test, name="Gradient Boosting", threshold=0.5):
+    y_proba = model.predict_proba(X_test)[:, 1]
+    y_pred = (y_proba >= threshold).astype(int)
 
-    fn = pp.get_feature_names_out()
-    im = clf.feature_importances_
+    metrics = {
+        "model": name,
+        "accuracy": accuracy_score(y_test, y_pred),
+        "precision": precision_score(y_test, y_pred, zero_division=0),
+        "recall": recall_score(y_test, y_pred, zero_division=0),
+        "f1": f1_score(y_test, y_pred, zero_division=0),
+        "roc_auc": roc_auc_score(y_test, y_proba),
+    }
 
-    fi = pd.DataFrame({
-        "feature": fn,
-        "importance": im,
-    }).sort_values(by="importance", ascending=False)
+    report = classification_report(y_test, y_pred)
+    matrix = confusion_matrix(y_test, y_pred)
 
-    return fi.head(n)
+    return metrics, report, matrix, y_pred, y_proba
+
+
+def feat_imp(model, n=20):
+    preprocessor = model.named_steps["prep"]
+    classifier = model.named_steps["clf"]
+
+    if not hasattr(classifier, "feature_importances_"):
+        return pd.DataFrame(columns=["feature", "importance"])
+
+    feature_names = preprocessor.get_feature_names_out()
+    importances = classifier.feature_importances_
+
+    return (
+        pd.DataFrame({
+            "feature": feature_names,
+            "importance": importances,
+        })
+        .sort_values(by="importance", ascending=False)
+        .head(n)
+    )
 
 
 def mk_artf(
-    mdl,
-    mtr,
-    cat,
-    num,
-    dd=False,
-    input_cols=None,
-    excluded_columns=None,
-    threshold_info=None,
-    contact_context=None,
+    model,
+    metrics,
+    cat_cols,
+    num_cols,
+    input_cols,
+    excluded_columns,
+    threshold_info,
+    contact_context,
 ):
-    threshold_info = threshold_info or {"threshold": 0.5}
-    contact_context = contact_context or {}
-
     return {
-        "model": mdl,
-        "metrics": mtr,
-        "feature_importance": feat_imp(mdl, n=20),
-        "cat_cols": cat,
-        "num_cols": num,
-        "input_cols": input_cols or cat + num,
-        "excluded_columns": excluded_columns or [],
-        "drop_duration": dd,
+        "model": model,
+        "metrics": metrics,
+        "feature_importance": feat_imp(model, n=20),
+        "cat_cols": cat_cols,
+        "num_cols": num_cols,
+        "input_cols": input_cols,
+        "excluded_columns": excluded_columns,
         "model_version": MODEL_VERSION,
         "contact_context": contact_context,
         "decision_threshold": float(threshold_info["threshold"]),
@@ -235,99 +298,201 @@ def mk_artf(
     }
 
 
-def train_gb_artifact(
-    fp,
+def build_training_data(
+    fp=None,
     dd=False,
     drop_columns=None,
     contact_profile=CONTACT_PROFILE,
 ):
-    fix_seed(42)
-
     source_df = load_dt(fp)
-    df, contact_context = apply_contact_profile(
+
+    filtered_df, contact_context = apply_contact_profile(
         source_df,
         contact_profile=contact_profile,
     )
 
     excluded_columns = [
-        col for col in get_drop_columns(drop_columns=drop_columns, dd=dd)
-        if col in source_df.columns
+        column
+        for column in get_drop_columns(drop_columns=drop_columns, dd=dd)
+        if column in source_df.columns
     ]
 
-    x, y, cat, num = prep_xy(
-        df,
+    X, y, cat_cols, num_cols = prep_xy(
+        filtered_df,
         dd=dd,
         drop_columns=drop_columns,
     )
 
-    xtr, xt, ytr, yt = split_dt(x, y)
-    xfit, xv, yfit, yv = split_dt(xtr, ytr, ts=0.25, s=43)
-
-    threshold_probe = mk_gb(mk_prep(cat, num))
-    threshold_probe.fit(xfit, yfit)
-    threshold_info = optimize_threshold(threshold_probe, xv, yv)
-
-    pp = mk_prep(cat, num)
-    mdl = mk_gb(pp)
-    mdl.fit(xtr, ytr)
-
-    mtr, rpt, mx, yp, pr = eval_mdl(
-        mdl,
-        xt,
-        yt,
-        nm="Gradient Boosting",
-        threshold=threshold_info["threshold"],
-    )
-
-    art = mk_artf(
-        mdl=mdl,
-        mtr=mtr,
-        cat=cat,
-        num=num,
-        dd=dd,
-        input_cols=x.columns.tolist(),
-        excluded_columns=excluded_columns,
-        threshold_info=threshold_info,
-        contact_context=contact_context,
-    )
-
-    return art, xtr, xt, yt, yp, pr, rpt, mx
+    return {
+        "source_df": source_df,
+        "filtered_df": filtered_df,
+        "contact_context": contact_context,
+        "excluded_columns": excluded_columns,
+        "X": X,
+        "y": y,
+        "cat_cols": cat_cols,
+        "num_cols": num_cols,
+    }
 
 
-def train_gb(
-    fp,
+def train_gb_artifact(
+    fp=None,
     dd=False,
     drop_columns=None,
     contact_profile=CONTACT_PROFILE,
 ):
-    art, xtr, xt, yt, yp, pr, rpt, mx = train_gb_artifact(
-        fp,
+    fix_seed(RANDOM_STATE)
+
+    data = build_training_data(
+        fp=fp,
         dd=dd,
         drop_columns=drop_columns,
         contact_profile=contact_profile,
     )
-    mtr = art["metrics"]
+
+    X = data["X"]
+    y = data["y"]
+    cat_cols = data["cat_cols"]
+    num_cols = data["num_cols"]
+
+    X_train, X_test, y_train, y_test = split_dt(X, y)
+
+    X_fit, X_valid, y_fit, y_valid = split_dt(
+        X_train,
+        y_train,
+        test_size=VALIDATION_SIZE,
+        seed=43,
+    )
+
+    threshold_probe = mk_model(
+        "gradient_boosting",
+        cat_cols,
+        num_cols,
+    )
+    threshold_probe.fit(X_fit, y_fit)
+
+    threshold_info = optimize_threshold(
+        threshold_probe,
+        X_valid,
+        y_valid,
+    )
+
+    model = mk_model(
+        "gradient_boosting",
+        cat_cols,
+        num_cols,
+    )
+    model.fit(X_train, y_train)
+
+    metrics, report, matrix, y_pred, y_proba = eval_mdl(
+        model,
+        X_test,
+        y_test,
+        name="Gradient Boosting",
+        threshold=threshold_info["threshold"],
+    )
+
+    artifact = mk_artf(
+        model=model,
+        metrics=metrics,
+        cat_cols=cat_cols,
+        num_cols=num_cols,
+        input_cols=X.columns.tolist(),
+        excluded_columns=data["excluded_columns"],
+        threshold_info=threshold_info,
+        contact_context=data["contact_context"],
+    )
+
+    return artifact, X_train, X_test, y_test, y_pred, y_proba, report, matrix
+
+
+def compare_models(
+    fp=None,
+    dd=False,
+    drop_columns=None,
+    contact_profile=CONTACT_PROFILE,
+):
+    data = build_training_data(
+        fp=fp,
+        dd=dd,
+        drop_columns=drop_columns,
+        contact_profile=contact_profile,
+    )
+
+    X = data["X"]
+    y = data["y"]
+    cat_cols = data["cat_cols"]
+    num_cols = data["num_cols"]
+
+    X_train, X_test, y_train, y_test = split_dt(X, y)
+
+    models = {
+        "Dummy baseline": "dummy",
+        "Logistic Regression": "logistic_regression",
+        "Random Forest": "random_forest",
+        "Gradient Boosting": "gradient_boosting",
+    }
+
+    rows = []
+
+    for model_name, model_key in models.items():
+        model = mk_model(model_key, cat_cols, num_cols)
+        model.fit(X_train, y_train)
+
+        y_proba = model.predict_proba(X_test)[:, 1]
+        y_pred = model.predict(X_test)
+
+        rows.append({
+            "model": model_name,
+            "accuracy": accuracy_score(y_test, y_pred),
+            "precision": precision_score(y_test, y_pred, zero_division=0),
+            "recall": recall_score(y_test, y_pred, zero_division=0),
+            "f1": f1_score(y_test, y_pred, zero_division=0),
+            "roc_auc": roc_auc_score(y_test, y_proba),
+        })
+
+    return (
+        pd.DataFrame(rows)
+        .sort_values(by="roc_auc", ascending=False)
+        .reset_index(drop=True)
+    )
+
+
+def train_gb(
+    fp=None,
+    dd=False,
+    drop_columns=None,
+    contact_profile=CONTACT_PROFILE,
+):
+    artifact, X_train, X_test, y_test, y_pred, y_proba, report, matrix = (
+        train_gb_artifact(
+            fp=fp,
+            dd=dd,
+            drop_columns=drop_columns,
+            contact_profile=contact_profile,
+        )
+    )
 
     return {
-        "metrics": mtr,
-        "report": rpt,
-        "confusion_matrix": mx,
-        "feature_importance": art["feature_importance"],
-        "excluded_columns": art["excluded_columns"],
-        "input_cols": art["input_cols"],
-        "contact_context": art["contact_context"],
-        "decision_threshold": art["decision_threshold"],
-        "threshold_validation_metrics": art["threshold_validation_metrics"],
-        "X_train_shape": xtr.shape,
-        "X_test_shape": xt.shape,
-        "y_test": yt,
-        "y_pred": yp,
-        "y_proba": pr,
+        "metrics": artifact["metrics"],
+        "report": report,
+        "confusion_matrix": matrix,
+        "feature_importance": artifact["feature_importance"],
+        "excluded_columns": artifact["excluded_columns"],
+        "input_cols": artifact["input_cols"],
+        "contact_context": artifact["contact_context"],
+        "decision_threshold": artifact["decision_threshold"],
+        "threshold_validation_metrics": artifact["threshold_validation_metrics"],
+        "X_train_shape": X_train.shape,
+        "X_test_shape": X_test.shape,
+        "y_test": y_test,
+        "y_pred": y_pred,
+        "y_proba": y_proba,
     }
 
 
 def train_mdl(
-    fp,
+    fp=None,
     dd=False,
     drop_columns=None,
     contact_profile=CONTACT_PROFILE,
@@ -341,62 +506,68 @@ def train_mdl(
 
 
 def load_mtr(model_artifact):
-    art = model_artifact
-    return art.get("metrics", {})
+    return model_artifact.get("metrics", {})
 
 
-def pred_client(cd, model_artifact):
-    art = model_artifact
-    mdl = art["model"]
-    inv = art["inverse_target_mapping"]
-    cat_cols = art.get("cat_cols", [])
-    num_cols = art.get("num_cols", [])
-    input_cols = art.get("input_cols") or cat_cols + num_cols
-    threshold = art.get("decision_threshold", 0.5)
+def pred_client(client_data, model_artifact):
+    model = model_artifact["model"]
+    inverse_mapping = model_artifact["inverse_target_mapping"]
+    cat_cols = model_artifact.get("cat_cols", [])
+    num_cols = model_artifact.get("num_cols", [])
+    input_cols = model_artifact.get("input_cols") or cat_cols + num_cols
+    threshold = model_artifact.get("decision_threshold", 0.5)
 
-    cdf = pd.DataFrame([cd])
+    client_df = pd.DataFrame([client_data])
 
-    for col in input_cols:
-        if col not in cdf.columns:
-            cdf[col] = "unknown" if col in cat_cols else 0
+    for column in input_cols:
+        if column not in client_df.columns:
+            client_df[column] = "unknown" if column in cat_cols else 0
 
-    for col in cat_cols:
-        if col in cdf.columns:
-            cdf[col] = cdf[col].where(cdf[col].notna(), "unknown").astype(str)
+    for column in cat_cols:
+        if column in client_df.columns:
+            client_df[column] = (
+                client_df[column]
+                .where(client_df[column].notna(), "unknown")
+                .astype(str)
+            )
 
-    for col in num_cols:
-        if col in cdf.columns:
-            cdf[col] = pd.to_numeric(cdf[col], errors="coerce").fillna(0)
+    for column in num_cols:
+        if column in client_df.columns:
+            client_df[column] = (
+                pd.to_numeric(client_df[column], errors="coerce")
+                .fillna(0)
+            )
 
-    cdf = cdf[input_cols]
+    client_df = client_df[input_cols]
 
-    pr = mdl.predict_proba(cdf)[0, 1]
-    yp = int(pr >= threshold)
+    probability = model.predict_proba(client_df)[0, 1]
+    prediction = int(probability >= threshold)
 
     return {
-        "prediction": int(yp),
-        "prediction_label": inv[int(yp)],
-        "deposit_probability": float(pr),
+        "prediction": prediction,
+        "prediction_label": inverse_mapping[prediction],
+        "deposit_probability": float(probability),
     }
 
 
 if __name__ == "__main__":
-    from pathlib import Path
+    result = train_gb()
+    comparison = compare_models()
 
-    fp = Path(__file__).resolve().parent / "Kaggle Database" / "bank.csv"
+    print("MODEL_VERSION:", MODEL_VERSION)
+    print("DATA_PATH:", DEFAULT_DATA_PATH)
+    print("Контекст контакта:", result["contact_context"])
+    print("Используемые входы:", result["input_cols"])
+    print("Исключенные поля:", result["excluded_columns"])
+    print("Размер обучающей выборки:", result["X_train_shape"])
+    print("Размер тестовой выборки:", result["X_test_shape"])
+    print("Порог решения:", result["decision_threshold"])
 
-    res = train_gb(
-        fp=str(fp),
-    )
+    print("\nСравнение моделей:")
+    print(comparison.round(4))
 
-    print("Размер обучающей выборки:", res["X_train_shape"])
-    print("Размер тестовой выборки:", res["X_test_shape"])
-    print("Используемые входы:", res["input_cols"])
-    print("Исключенные поля:", res["excluded_columns"])
-    print("Контекст контакта:", res["contact_context"])
-    print("Порог решения:", res["decision_threshold"])
     print("\nGradient Boosting:")
-    print(res["metrics"])
-    print(res["report"])
-    print(res["confusion_matrix"])
-    print(res["feature_importance"])
+    print(result["metrics"])
+    print(result["report"])
+    print(result["confusion_matrix"])
+    print(result["feature_importance"])
