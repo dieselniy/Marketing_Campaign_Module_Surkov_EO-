@@ -8,7 +8,7 @@ from ml_bank_model import MODEL_VERSION, pred_client, train_gb_artifact
 from src.auth import init_session_state, require_login, check_session
 
 
-file_path = "Kaggle Database/online_advertising_performance_data.csv"
+file_path = "Kaggle Database/bank.csv"
 bank_daf = pds.read_csv(file_path)
 bank_source_columns = bank_daf.columns.tolist()
 init_session_state()
