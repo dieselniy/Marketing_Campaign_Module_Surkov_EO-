@@ -509,7 +509,16 @@ def load_mtr(model_artifact):
     return model_artifact.get("metrics", {})
 
 
-def pred_client(client_data, model_artifact):
+def pred_client(client_data=None, model_artifact=None, cd=None):
+    if client_data is None:
+        client_data = cd
+
+    if client_data is None:
+        raise ValueError("pred_client requires client_data or cd.")
+
+    if model_artifact is None:
+        raise ValueError("pred_client requires model_artifact.")
+
     model = model_artifact["model"]
     inverse_mapping = model_artifact["inverse_target_mapping"]
     cat_cols = model_artifact.get("cat_cols", [])
