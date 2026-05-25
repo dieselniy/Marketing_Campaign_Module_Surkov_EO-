@@ -248,7 +248,7 @@ def mk_artf(
         "num_cols": num_cols,
         "input_cols": input_cols,
         "excluded_columns": excluded_columns,
-        "modelver": modelver,
+        "MOD_VERS": MOD_VERS,
         "contactctx": contactctx,
         "decision_threshold": float(threshold_info["threshold"]),
         "threshold_validation_metrics": threshold_info,
@@ -463,7 +463,7 @@ def pred_client(client_data=None, model_artifact=None, cd=None):
 if __name__ == "__main__":
     result = train_gb()
 
-    print("modelver:", modelver)
+    print("MOD_VERS:", MOD_VERS)
     print("defpath:", defpath)
     print("contactctx:", result["contactctx"])
     print("Используемые входы:", result["input_cols"])
