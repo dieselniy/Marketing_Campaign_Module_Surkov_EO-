@@ -1,14 +1,26 @@
+import kagglehub
 import numpy as npy
 import pandas as pds
 import plotly.express as px
 import streamlit as slt
+from kagglehub import KaggleDatasetAdapter
 from sklearn.ensemble import RandomForestClassifier
 from ml_bank_model import pred_client, train_gb_artifact
 from src.auth import init_session_state, require_login, check_session
 
 
-file_path = "Kaggle Database/bank.csv"
-bank_daf = pds.read_csv(file_path)
+file_path = "bank.csv"
+
+bank_daf = kagglehub.load_dataset(
+    KaggleDatasetAdapter.PANDAS,
+    "janiobachmann/bank-marketing-dataset",
+    file_path,
+)
+
+file_path = kagglehub.dataset_download(
+    "janiobachmann/bank-marketing-dataset",
+    path=file_path,
+)
 bank_source_columns = bank_daf.columns.tolist()
 init_session_state()
 
