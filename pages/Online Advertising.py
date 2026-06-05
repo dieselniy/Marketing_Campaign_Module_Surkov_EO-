@@ -7,10 +7,16 @@ from sklearn.ensemble import RandomForestRegressor
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import date, timedelta
+from pathlib import Path
 from ml_online_model import predict_campaign_forecast, train_campaign_forecast
+import kagglehub
 
-file_path = "Kaggle Database/online_advertising_performance_data.csv"
-daf = pds.read_csv(file_path)
+file_path = kagglehub.dataset_download(
+    "naniruddhan/online-advertising-digital-marketing-data",
+    path="online_advertising_performance_data.csv",
+)
+daf = pds.read_csv(file_path, usecols=range(12))
+source_columns = daf.columns.tolist()
 # --- Инициализация session_state ---
 init_session_state()
 
@@ -629,7 +635,6 @@ with scatter_container:
         hide_index=True,
         height=220
     )
-  
 
 
 with barchart_container:
@@ -699,7 +704,7 @@ with barchart_container:
         with importance_container:
             slt.subheader("Топ 10 признаков для ROI")
 
-            X = daf.drop(columns=['ROI', 'date']).copy()
+            X = daf[source_columns].copy()
             X = pds.get_dummies(X)
             y = daf['ROI']
 
@@ -823,5 +828,3 @@ with roas_pred:
             f"Прогноз построен для периода {forecast_min_date:%d.%m.%Y} - {forecast_max_date:%d.%m.%Y} "
             "по месяцам, представленным в датасете: апрель, май и июнь."
         )
-# time.sleep(5)
-# slt.rerun()
