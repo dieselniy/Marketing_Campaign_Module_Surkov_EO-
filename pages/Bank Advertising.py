@@ -1,10 +1,9 @@
-# page2.py
 import numpy as npy
 import pandas as pds
 import plotly.express as px
 import streamlit as slt
 from sklearn.ensemble import RandomForestClassifier
-from ml_bank_model import MOD_VERS, pred_client, train_gb_artifact
+from ml_bank_model import pred_client, train_gb_artifact
 from src.auth import init_session_state, require_login, check_session
 
 
@@ -16,7 +15,7 @@ init_session_state()
 VAL_LABLS = {
     "job": {
         "admin.": "Администратор",
-        "blue-collar": "Рабочий",
+        "blue-collar": "Наемный рабочий",
         "entrepreneur": "Предприниматель",
         "housemaid": "Домработник",
         "management": "Менеджмент",
@@ -75,12 +74,55 @@ VAL_LABLS = {
         "other": "Другое",
         "success": "Успешно",
         "unknown": "Неизвестно"
+    },
+    "deposit": {
+        "no": "Нет",
+        "yes": "Да"
     }
 }
 
-bank_daf["deposit_flag"] = (bank_daf["deposit"] == "yes").astype(int)
+FEATURE_LABLS = {
+    "age": "Возраст",
+    "job": "Профессия",
+    "marital": "Семейное положение",
+    "education": "Образование",
+    "default": "Дефолт по кредиту",
+    "balance": "Баланс",
+    "housing": "Ипотека",
+    "loan": "Персональный заем",
+    "contact": "Тип контакта",
+    "day": "День контакта",
+    "month": "Месяц",
+    "duration": "Длительность звонка",
+    "campaign": "Контактов в кампании",
+    "pdays": "Дней после прошлого контакта",
+    "previous": "Предыдущих контактов",
+    "poutcome": "Результат прошлой кампании",
+    "deposit": "Депозит",
+}
 
-slt.set_page_config(page_title="Банк-X: рекламные контакты", layout="wide")
+COLUMN_LABLS = {
+    "feature": "Признак",
+    "value": "Значение",
+    "importance": "Важность",
+    "job": "Профессия",
+    "marital": "Семейное положение",
+    "education": "Образование",
+    "deposit": "Депозит",
+    "active_balance": "Активные средства",
+    "avg_balance": "Средний баланс",
+    "median_balance": "Медианный баланс",
+    "clients": "Клиентов",
+    "deposits": "Депозитов",
+    "deposit_rate": "Конверсия в депозит",
+    "low_balance_clients": "Клиентов с низким балансом",
+    "low_balance_rate": "Риск низкого баланса",
+    "low_balance_limit": "Порог низкого баланса",
+}
+
+bank_daf["deposit_flag"] = (
+    bank_daf["deposit"].astype(str).str.strip().str.lower() == "yes"
+).astype(int)
 
 # --- Инициализация session_state ---
 init_session_state()
@@ -91,6 +133,9 @@ if "session_id" in params:
     slt.session_state.session_id = params["session_id"][0]
     if check_session():
         slt.session_state.authenticated = True
+
+# --- Проверка авторизации ---
+# require_login()
 
 # --- Контент страницы ---
 slt.header("Аналитика рекламной кампании Банка-X")
@@ -166,7 +211,7 @@ def loc_selctbox(label, field_name, options, key, index=0):
 
 
 @slt.cache_resource
-def bank_ml_artif(path, MOD_VERS_val):
+def bank_ml_artif(path):
     artifact, *_ = train_gb_artifact(path)
     return artifact
 
@@ -198,6 +243,148 @@ def format_integer_value(value):
     return f"{int(value):,}"
 
 
+def format_decimal_value(value, digits=3):
+    if pds.isna(value):
+        return ""
+    return f"{value:.{digits}f}".rstrip("0").rstrip(".")
+
+
+def style_display_table(table):
+    return table.style.set_properties(
+        **{"text-align": "center"}
+    ).set_table_styles([
+        {"selector": "th", "props": [("text-align", "center")]},
+        {"selector": "td", "props": [("text-align", "center")]},
+    ])
+
+
+def localize_value(field_name, value):
+    if pds.isna(value):
+        return ""
+
+    labels = VAL_LABLS.get(str(field_name), {})
+    return labels.get(str(value), value)
+
+
+def localize_feature_name(feature_name):
+    raw_feature = str(feature_name)
+    if "__" in raw_feature:
+        raw_feature = raw_feature.split("__", 1)[1]
+
+    if raw_feature in FEATURE_LABLS:
+        return FEATURE_LABLS[raw_feature]
+
+    for field_name in sorted(VAL_LABLS.keys(), key=len, reverse=True):
+        prefix = f"{field_name}_"
+        if raw_feature.startswith(prefix):
+            value = raw_feature[len(prefix):]
+            field_label = FEATURE_LABLS.get(field_name, field_name)
+            value_label = localize_value(field_name, value)
+            return f"{field_label}: {value_label}"
+
+    return raw_feature
+
+
+def localize_categorical_columns(table, columns=None):
+    localized = table.copy()
+    selected_columns = columns or VAL_LABLS.keys()
+
+    for column in selected_columns:
+        if column in localized.columns:
+            localized[column] = localized[column].map(
+                lambda value: localize_value(column, value)
+            )
+
+    return localized
+
+
+def rename_display_columns(table):
+    return table.rename(columns={
+        column: COLUMN_LABLS.get(column, column)
+        for column in table.columns
+    })
+
+
+def format_money_columns(table, columns):
+    formatted = table.copy()
+    for column in columns:
+        if column in formatted.columns:
+            formatted[column] = formatted[column].map(format_money_value)
+    return formatted
+
+
+def format_percent_columns(table, columns):
+    formatted = table.copy()
+    for column in columns:
+        if column in formatted.columns:
+            formatted[column] = formatted[column].map(format_percent_value)
+    return formatted
+
+
+def format_integer_columns(table, columns):
+    formatted = table.copy()
+    for column in columns:
+        if column in formatted.columns:
+            formatted[column] = formatted[column].map(format_integer_value)
+    return formatted
+
+
+def factor_importance_display_table(data):
+    table = rounded_table(data)
+
+    if "feature" in table.columns:
+        table["feature"] = table["feature"].map(localize_feature_name)
+    if "importance" in table.columns:
+        table["importance"] = table["importance"].map(format_decimal_value)
+
+    return style_display_table(rename_display_columns(table))
+
+
+def marital_deposit_display_table(data):
+    table = rounded_table(data, digits=2)
+    table = localize_categorical_columns(table, ["marital", "deposit"])
+    table = format_money_columns(table, ["avg_balance", "median_balance"])
+    table = format_integer_columns(table, ["clients"])
+    return style_display_table(rename_display_columns(table))
+
+
+def marital_conversion_display_table(data):
+    table = rounded_table(data, digits=2)
+    table = localize_categorical_columns(table, ["marital"])
+    table = format_money_columns(table, ["avg_balance", "median_balance"])
+    table = format_percent_columns(table, ["deposit_rate"])
+    table = format_integer_columns(table, ["clients", "deposits"])
+    return style_display_table(rename_display_columns(table))
+
+
+def education_balance_display_table(data):
+    table = rounded_table(data, digits=2)
+    table = localize_categorical_columns(table, ["marital", "education"])
+    table = format_money_columns(table, ["avg_balance", "median_balance"])
+    table = format_integer_columns(table, ["clients"])
+    return style_display_table(rename_display_columns(table))
+
+
+def low_balance_segments_display_table(data):
+    table = rounded_table(data, digits=2)
+
+    if "feature" in table.columns and "value" in table.columns:
+        raw_features = table["feature"].copy()
+        table["value"] = [
+            localize_value(feature, value)
+            for feature, value in zip(raw_features, table["value"])
+        ]
+        table["feature"] = raw_features.map(localize_feature_name)
+
+    table = format_money_columns(
+        table,
+        ["avg_balance", "median_balance", "low_balance_limit"],
+    )
+    table = format_percent_columns(table, ["low_balance_rate"])
+    table = format_integer_columns(table, ["clients", "low_balance_clients"])
+    return style_display_table(rename_display_columns(table))
+
+
 def active_balance_display_table(data):
     table = rounded_table(data, digits=2)
 
@@ -217,22 +404,10 @@ def active_balance_display_table(data):
         if column in table.columns:
             table[column] = table[column].map(format_integer_value)
 
-    table = table.rename(columns={
-        "job": "Профессия",
-        "active_balance": "активные средства",
-        "avg_balance": "средний баланс",
-        "median_balance": "медианный баланс",
-        "clients": "клиентов",
-        "deposits": "внесенных депозитов",
-        "deposit_rate": "конверсия в депозит",
-    })
+    table = rename_display_columns(table)
 
-    return table.style.set_properties(
-        **{"text-align": "center"}
-    ).set_table_styles([
-        {"selector": "th", "props": [("text-align", "center")]},
-        {"selector": "td", "props": [("text-align", "center")]},
-    ])
+    return style_display_table(table)
+
 
 @slt.cache_data
 def build_bank_stats(daf, source_columns):
@@ -312,11 +487,6 @@ def build_bank_stats(daf, source_columns):
     treemap_data["active_balance_for_plot"] = (
         treemap_data["active_balance"].clip(lower=0)
     )
-    treemap_data = treemap_data.rename(columns={
-        "job": "Occupation",
-        "active_balance": "Active Balance",
-        "active_balance_for_plot": "Active Balance For Plot",
-    })
 
     top_occupation = None
     if not active_balance.empty:
@@ -474,7 +644,6 @@ bank_stats = build_bank_stats(bank_daf, bank_source_columns)
 
 with overview_panel:
     active_balance = bank_stats["occupation_active_balance"]
-    treemap_data = bank_stats["occupation_treemap_data"]
 
     slt.subheader("Активный баланс по профессиям")
     slt.dataframe(
@@ -484,24 +653,60 @@ with overview_panel:
         height=300
     )
 
-    if treemap_data is not None and not treemap_data.empty:
+    if active_balance is not None and not active_balance.empty:
+        treemap_data = active_balance.copy()
+        treemap_data["Профессия"] = treemap_data["job"].map(
+            lambda value: localize_value("job", value)
+        )
+        treemap_data["Активные средства"] = treemap_data["active_balance"]
+        treemap_data["Активные средства для диаграммы"] = (
+            treemap_data["active_balance"].clip(lower=0)
+        )
+        treemap_data["Активные средства, формат"] = treemap_data[
+            "active_balance"
+        ].map(format_money_value)
+        treemap_data["Клиентов"] = treemap_data["clients"].map(
+            format_integer_value
+        )
+        treemap_data["Депозитов"] = treemap_data["deposits"].map(
+            format_integer_value
+        )
+        treemap_data["Конверсия"] = treemap_data["deposit_rate"].map(
+            format_percent_value
+        )
+
         fig = px.treemap(
             treemap_data,
-            path=["Occupation"],
-            values="Active Balance For Plot",
-            hover_data=["Occupation", "Active Balance"],
+            path=["Профессия"],
+            values="Активные средства для диаграммы",
+            custom_data=[
+                "Активные средства, формат",
+                "Клиентов",
+                "Депозитов",
+                "Конверсия",
+            ],
             height=420,
+        )
+        fig.update_traces(
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Активные средства: %{customdata[0]}<br>"
+                "Клиентов: %{customdata[1]}<br>"
+                "Депозитов: %{customdata[2]}<br>"
+                "Конверсия в депозит: %{customdata[3]}"
+                "<extra></extra>"
+            )
         )
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
         slt.plotly_chart(fig, use_container_width=True)
 
 
 with profile_panel:
-    slt.subheader("Все факторы открытия депозита с duration")
+    slt.subheader("Все факторы открытия депозита с длительностью звонка")
 
     deposit_factors = bank_stats["deposit_factor_importance"]
     slt.dataframe(
-        rounded_table(deposit_factors),
+        factor_importance_display_table(deposit_factors),
         use_container_width=True,
         hide_index=True,
         height=510
@@ -550,19 +755,51 @@ with segment_panel:
     )
 
     if marital_balance_data is not None and not marital_balance_data.empty:
-        fig = px.box(
-            marital_balance_data,
-            x="marital",
-            y="balance",
-            color="deposit",
-            points="all",
-            height=330,
+        marital_plot_data = marital_balance_data.copy()
+        marital_plot_data["Семейное положение"] = marital_plot_data[
+            "marital"
+        ].map(lambda value: localize_value("marital", value))
+        marital_plot_data["Депозит"] = marital_plot_data["deposit"].map(
+            lambda value: localize_value("deposit", value)
         )
+        marital_plot_data["Баланс"] = marital_plot_data["balance"]
+        marital_plot_data["Баланс, формат"] = marital_plot_data["balance"].map(
+            format_money_value
+        )
+
+        fig = px.box(
+            marital_plot_data,
+            x="Семейное положение",
+            y="Баланс",
+            color="Депозит",
+            points="all",
+            custom_data=["Баланс, формат"],
+            height=330,
+            labels={
+                "Семейное положение": "Семейное положение",
+                "Баланс": "Баланс",
+                "Депозит": "Депозит",
+            },
+        )
+        fig.update_traces(
+            hovertemplate=(
+                "Семейное положение: %{x}<br>"
+                "Баланс: %{customdata[0]}"
+                "<extra>%{fullData.name}</extra>"
+            )
+        )
+        fig.update_yaxes(
+            title_text="Баланс",
+            tickformat=",.0f",
+            ticksuffix=" $",
+            separatethousands=True,
+        )
+        fig.update_layout(legend_title_text="Депозит")
         fig.update_layout(margin=dict(l=10, r=10, t=10, b=10))
         slt.plotly_chart(fig, use_container_width=True)
 
     slt.dataframe(
-        rounded_table(marital_summary),
+        marital_deposit_display_table(marital_summary),
         use_container_width=True,
         hide_index=True,
         height=190
@@ -574,19 +811,71 @@ with conversion_panel:
 
     marital_conversion = bank_stats["marital_conversion"]
     slt.dataframe(
-        rounded_table(marital_conversion),
+        marital_conversion_display_table(marital_conversion),
         use_container_width=True,
         hide_index=True,
         height=210
     )
 
     if marital_conversion is not None and not marital_conversion.empty:
-        slt.bar_chart(
-            marital_conversion,
-            x="marital",
-            y="deposit_rate",
-            color="marital"
+        conversion_plot_data = marital_conversion.copy()
+        conversion_plot_data["Семейное положение"] = conversion_plot_data[
+            "marital"
+        ].map(lambda value: localize_value("marital", value))
+        conversion_plot_data["Конверсия в депозит"] = conversion_plot_data[
+            "deposit_rate"
+        ]
+        conversion_plot_data["Конверсия, формат"] = conversion_plot_data[
+            "deposit_rate"
+        ].map(format_percent_value)
+        conversion_plot_data["Средний баланс"] = conversion_plot_data[
+            "avg_balance"
+        ].map(format_money_value)
+        conversion_plot_data["Медианный баланс"] = conversion_plot_data[
+            "median_balance"
+        ].map(format_money_value)
+        conversion_plot_data["Клиентов"] = conversion_plot_data["clients"].map(
+            format_integer_value
         )
+        conversion_plot_data["Депозитов"] = conversion_plot_data[
+            "deposits"
+        ].map(format_integer_value)
+
+        fig = px.bar(
+            conversion_plot_data,
+            x="Семейное положение",
+            y="Конверсия в депозит",
+            color="Семейное положение",
+            custom_data=[
+                "Конверсия, формат",
+                "Средний баланс",
+                "Медианный баланс",
+                "Клиентов",
+                "Депозитов",
+            ],
+            labels={
+                "Семейное положение": "Семейное положение",
+                "Конверсия в депозит": "Конверсия в депозит",
+            },
+            height=350,
+        )
+        fig.update_traces(
+            hovertemplate=(
+                "Семейное положение: %{x}<br>"
+                "Конверсия в депозит: %{customdata[0]}<br>"
+                "Средний баланс: %{customdata[1]}<br>"
+                "Медианный баланс: %{customdata[2]}<br>"
+                "Клиентов: %{customdata[3]}<br>"
+                "Депозитов: %{customdata[4]}"
+                "<extra></extra>"
+            )
+        )
+        fig.update_yaxes(title_text="Конверсия в депозит", tickformat=".0%")
+        fig.update_layout(
+            legend_title_text="Семейное положение",
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
+        slt.plotly_chart(fig, use_container_width=True)
 
 
 with driver_panel:
@@ -594,7 +883,7 @@ with driver_panel:
 
     education_balance = bank_stats["education_marital_balance"]
     slt.dataframe(
-        rounded_table(education_balance),
+        education_balance_display_table(education_balance),
         use_container_width=True,
         hide_index=True,
         height=220
@@ -602,17 +891,65 @@ with driver_panel:
 
     if education_balance is not None and not education_balance.empty:
         segment_data = education_balance.copy()
-        segment_data["segment"] = (
-            segment_data["marital"].astype(str)
+        segment_data["Семейное положение"] = segment_data["marital"].map(
+            lambda value: localize_value("marital", value)
+        )
+        segment_data["Образование"] = segment_data["education"].map(
+            lambda value: localize_value("education", value)
+        )
+        segment_data["Сегмент"] = (
+            segment_data["Семейное положение"].astype(str)
             + " / "
-            + segment_data["education"].astype(str)
+            + segment_data["Образование"].astype(str)
         )
-        slt.bar_chart(
+        segment_data["Медианный баланс"] = segment_data["median_balance"]
+        segment_data["Медианный баланс, формат"] = segment_data[
+            "median_balance"
+        ].map(format_money_value)
+        segment_data["Средний баланс"] = segment_data["avg_balance"].map(
+            format_money_value
+        )
+        segment_data["Клиентов"] = segment_data["clients"].map(
+            format_integer_value
+        )
+
+        fig = px.bar(
             segment_data,
-            x="segment",
-            y="median_balance",
-            color="marital"
+            x="Сегмент",
+            y="Медианный баланс",
+            color="Семейное положение",
+            custom_data=[
+                "Медианный баланс, формат",
+                "Средний баланс",
+                "Клиентов",
+            ],
+            labels={
+                "Сегмент": "Сегмент",
+                "Медианный баланс": "Медианный баланс",
+                "Семейное положение": "Семейное положение",
+            },
+            height=360,
         )
+        fig.update_traces(
+            hovertemplate=(
+                "Сегмент: %{x}<br>"
+                "Медианный баланс: %{customdata[0]}<br>"
+                "Средний баланс: %{customdata[1]}<br>"
+                "Клиентов: %{customdata[2]}"
+                "<extra></extra>"
+            )
+        )
+        fig.update_yaxes(
+            title_text="Медианный баланс",
+            tickformat=",.0f",
+            ticksuffix=" $",
+            separatethousands=True,
+        )
+        fig.update_layout(
+            legend_title_text="Семейное положение",
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
+        slt.plotly_chart(fig, use_container_width=True)
 
 
 with balance_reason_panel:
@@ -622,23 +959,45 @@ with balance_reason_panel:
 
     slt.subheader(f"Факторы низкого баланса")
     slt.dataframe(
-        rounded_table(low_balance_factors),
+        factor_importance_display_table(low_balance_factors),
         use_container_width=True,
         hide_index=True,
         height=230
     )
 
     if low_balance_factors is not None and not low_balance_factors.empty:
-        slt.bar_chart(
-            low_balance_factors,
-            x="feature",
-            y="importance",
-            color="feature"
+        low_balance_factor_plot = low_balance_factors.copy()
+        low_balance_factor_plot["Признак"] = low_balance_factor_plot[
+            "feature"
+        ].map(localize_feature_name)
+        low_balance_factor_plot["Важность"] = low_balance_factor_plot[
+            "importance"
+        ]
+
+        fig = px.bar(
+            low_balance_factor_plot,
+            x="Признак",
+            y="Важность",
+            color="Признак",
+            labels={"Признак": "Признак", "Важность": "Важность"},
+            height=330,
         )
+        fig.update_traces(
+            hovertemplate=(
+                "Признак: %{x}<br>"
+                "Важность: %{y:.3f}"
+                "<extra></extra>"
+            )
+        )
+        fig.update_layout(
+            legend_title_text="Признак",
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
+        slt.plotly_chart(fig, use_container_width=True)
 
     slt.markdown("**Сегменты с риском низкого баланса**")
     slt.dataframe(
-        rounded_table(low_balance_segments),
+        low_balance_segments_display_table(low_balance_segments),
         use_container_width=True,
         hide_index=True,
         height=250
@@ -646,24 +1005,89 @@ with balance_reason_panel:
 
     if low_balance_segments is not None and not low_balance_segments.empty:
         segment_data = low_balance_segments.head(15).copy()
-        segment_data["segment"] = (
-            segment_data["feature"].astype(str)
+        segment_data["Признак"] = segment_data["feature"].map(
+            localize_feature_name
+        )
+        segment_data["Значение"] = [
+            localize_value(feature, value)
+            for feature, value in zip(segment_data["feature"], segment_data["value"])
+        ]
+        segment_data["Сегмент"] = (
+            segment_data["Признак"].astype(str)
             + " = "
-            + segment_data["value"].astype(str)
+            + segment_data["Значение"].astype(str)
         )
-        slt.bar_chart(
+        segment_data["Риск низкого баланса"] = segment_data[
+            "low_balance_rate"
+        ]
+        segment_data["Риск, формат"] = segment_data["low_balance_rate"].map(
+            format_percent_value
+        )
+        segment_data["Средний баланс"] = segment_data["avg_balance"].map(
+            format_money_value
+        )
+        segment_data["Медианный баланс"] = segment_data[
+            "median_balance"
+        ].map(format_money_value)
+        segment_data["Порог низкого баланса"] = segment_data[
+            "low_balance_limit"
+        ].map(format_money_value)
+        segment_data["Клиентов"] = segment_data["clients"].map(
+            format_integer_value
+        )
+        segment_data["Клиентов с низким балансом"] = segment_data[
+            "low_balance_clients"
+        ].map(format_integer_value)
+
+        fig = px.bar(
             segment_data,
-            x="segment",
-            y="low_balance_rate",
-            color="feature"
+            x="Сегмент",
+            y="Риск низкого баланса",
+            color="Признак",
+            custom_data=[
+                "Риск, формат",
+                "Средний баланс",
+                "Медианный баланс",
+                "Порог низкого баланса",
+                "Клиентов",
+                "Клиентов с низким балансом",
+            ],
+            labels={
+                "Сегмент": "Сегмент",
+                "Риск низкого баланса": "Риск низкого баланса",
+                "Признак": "Признак",
+            },
+            height=360,
         )
+        fig.update_traces(
+            hovertemplate=(
+                "Сегмент: %{x}<br>"
+                "Риск низкого баланса: %{customdata[0]}<br>"
+                "Средний баланс: %{customdata[1]}<br>"
+                "Медианный баланс: %{customdata[2]}<br>"
+                "Порог низкого баланса: %{customdata[3]}<br>"
+                "Клиентов: %{customdata[4]}<br>"
+                "Клиентов с низким балансом: %{customdata[5]}"
+                "<extra></extra>"
+            )
+        )
+        fig.update_yaxes(title_text="Риск низкого баланса", tickformat=".0%")
+        fig.update_layout(
+            legend_title_text="Признак",
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
+        slt.plotly_chart(fig, use_container_width=True)
 
 
 with predictor_panel:
     slt.subheader("Прогноз открытия депозита")
-    model_artifact = bank_ml_artif(str(file_path), MOD_VERS)
+    model_artifact = bank_ml_artif(str(file_path))
     slt.caption(
-        "Заполните параметры"
+        "Заполните параметры, которые известны до контакта с клиентом. "
+        "Модель Gradient Boosting не использует баланс, длительность звонка "
+        "день контакта и историю прошлых контактов. Прогноз строится при "
+        "допущении, что контакт прошёл по нормальному сценарию: диалог длился "
+        "примерно 3-12 минут."
     )
 
     with slt.form("bank_deposit_prediction_form"):
