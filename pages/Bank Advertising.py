@@ -92,9 +92,6 @@ if "session_id" in params:
     if check_session():
         slt.session_state.authenticated = True
 
-# --- Проверка авторизации ---
-# require_login()
-
 # --- Контент страницы ---
 slt.header("Аналитика рекламной кампании Банка-X")
 slt.markdown(
@@ -180,6 +177,62 @@ def rounded_table(data, digits=3):
     table[numeric_columns] = table[numeric_columns].round(digits)
     return table
 
+
+def format_money_value(value):
+    if pds.isna(value):
+        return ""
+    formatted_value = f"{value:,.2f}".rstrip("0").rstrip(".")
+    return f"{formatted_value} $"
+
+
+def format_percent_value(value):
+    if pds.isna(value):
+        return ""
+    formatted_value = f"{value * 100:,.2f}".rstrip("0").rstrip(".")
+    return f"{formatted_value}%"
+
+
+def format_integer_value(value):
+    if pds.isna(value):
+        return ""
+    return f"{int(value):,}"
+
+
+def active_balance_display_table(data):
+    table = rounded_table(data, digits=2)
+
+    if "job" in table.columns:
+        table["job"] = table["job"].map(
+            lambda value: VAL_LABLS["job"].get(value, value)
+        )
+
+    for column in ["active_balance", "avg_balance", "median_balance"]:
+        if column in table.columns:
+            table[column] = table[column].map(format_money_value)
+
+    if "deposit_rate" in table.columns:
+        table["deposit_rate"] = table["deposit_rate"].map(format_percent_value)
+
+    for column in ["clients", "deposits"]:
+        if column in table.columns:
+            table[column] = table[column].map(format_integer_value)
+
+    table = table.rename(columns={
+        "job": "Профессия",
+        "active_balance": "активные средства",
+        "avg_balance": "средний баланс",
+        "median_balance": "медианный баланс",
+        "clients": "клиентов",
+        "deposits": "внесенных депозитов",
+        "deposit_rate": "конверсия в депозит",
+    })
+
+    return table.style.set_properties(
+        **{"text-align": "center"}
+    ).set_table_styles([
+        {"selector": "th", "props": [("text-align", "center")]},
+        {"selector": "td", "props": [("text-align", "center")]},
+    ])
 
 @slt.cache_data
 def build_bank_stats(daf, source_columns):
@@ -425,7 +478,7 @@ with overview_panel:
 
     slt.subheader("Активный баланс по профессиям")
     slt.dataframe(
-        rounded_table(active_balance),
+        active_balance_display_table(active_balance),
         use_container_width=True,
         hide_index=True,
         height=300
