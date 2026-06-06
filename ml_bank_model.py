@@ -1,9 +1,7 @@
 import random
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import (
@@ -22,9 +20,12 @@ from sklearn.preprocessing import OneHotEncoder
 
 modelver = "bank_dep_v5"
 
-projdir = Path(__file__).resolve().parent
-defpath = projdir / "Kaggle Database" / "bank.csv"
-
+bank_daf = kagglehub.load_dataset(
+    KaggleDatasetAdapter.PANDAS,
+    "janiobachmann/bank-marketing-dataset",
+    "bank.csv",
+)
+bank_source_columns = bank_daf.columns.tolist()
 targcol = "deposit"
 
 dropcols = [
