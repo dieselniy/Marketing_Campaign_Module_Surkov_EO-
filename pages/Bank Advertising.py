@@ -4,6 +4,7 @@ import pandas as pds
 import plotly.express as px
 import streamlit as slt
 import kagglehub 
+from kagglehub import KaggleDatasetAdapter
 from sklearn.ensemble import RandomForestClassifier
 from ml_bank_model import pred_client, train_gb_artifact
 from src.auth import init_session_state, require_login, check_session
