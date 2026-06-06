@@ -1,16 +1,20 @@
+import kagglehub
 import numpy as npy
 import pandas as pds
 import plotly.express as px
 import streamlit as slt
+from kagglehub import KaggleDatasetAdapter
 from sklearn.ensemble import RandomForestClassifier
-from ml_bank_model import (
-    bank_daf,
-    bank_source_columns,
-    pred_client,
-    train_gb_artifact,
-)
+from ml_bank_model import pred_client, train_gb_artifact
 from src.auth import init_session_state, require_login, check_session
 
+
+bank_daf = kagglehub.load_dataset(
+    KaggleDatasetAdapter.PANDAS,
+    "janiobachmann/bank-marketing-dataset",
+    "bank.csv",
+)
+bank_source_columns = bank_daf.columns.tolist()
 
 VAL_LABLS = {
     "job": {
@@ -211,8 +215,8 @@ def loc_selctbox(label, field_name, options, key, index=0):
 
 
 @slt.cache_resource
-def bank_ml_artif():
-    artifact, *_ = train_gb_artifact(df=bank_daf[bank_source_columns])
+def bank_ml_artif(source_data):
+    artifact, *_ = train_gb_artifact(df=source_data)
     return artifact
 
 
@@ -1081,7 +1085,7 @@ with balance_reason_panel:
 
 with predictor_panel:
     slt.subheader("Прогноз открытия депозита")
-    model_artifact = bank_ml_artif()
+    model_artifact = bank_ml_artif(bank_daf[bank_source_columns])
     slt.caption(
         "Заполните параметры, которые известны до контакта с клиентом. "
         "Модель Gradient Boosting не использует баланс, длительность звонка "
