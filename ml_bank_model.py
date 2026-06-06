@@ -2,20 +2,10 @@ import random
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import kagglehub
+from kagglehub import KaggleDatasetAdapter
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.metrics import (
-    accuracy_score,
-    classification_report,
-    confusion_matrix,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-)
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
 
 
 modelver = "bank_dep_v5"
