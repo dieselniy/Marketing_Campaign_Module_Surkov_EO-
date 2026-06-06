@@ -17,20 +17,17 @@ file_path = kagglehub.dataset_download(
 )
 daf = pds.read_csv(file_path, usecols=range(12))
 source_columns = daf.columns.tolist()
-# --- Инициализация session_state ---
+
 init_session_state()
 
 slt.set_page_config(page_title="Онлайн Кампании", layout="wide")
 
-# --- Восстановление session_id ---
+
 params = slt.query_params
 if "session_id" in params:
     slt.session_state.session_id = params["session_id"][0]
     if check_session():
         slt.session_state.authenticated = True
-
-# --- Проверка авторизации ---
-#require_login()
 
 slt.header("Аналитика Онлайн Маркетинговых Кампаний")
 
@@ -314,7 +311,7 @@ with graph_container:
         key="graph_mode"
     )
 
-    # --- Дата ---
+    
     daf['date'] = pds.to_datetime(
         daf['month'] + ' ' + daf['day'].astype(str) + ' 2024'
     )
@@ -338,7 +335,7 @@ with graph_container:
         final_df = campaign_grouped.copy()
         final_df["Total"] = total_grouped
 
-        # --- Средний ROI по месяцам по кампаниям ---
+        # --- Средний ROI каманий по месяцам ---
         monthly_roi_df = (
             daf.groupby(['month', 'campaign_number'])['ROI']
             .mean()
@@ -361,7 +358,6 @@ with graph_container:
         }
         monthly_roi_df['date'] = monthly_roi_df['month'].map(month_date_map)
 
-        # --- Total ROI по месяцам ---
         monthly_total_roi = (
             daf.groupby('month')[['cost', 'post_click_conversions']]
             .sum()
@@ -384,7 +380,6 @@ with graph_container:
 
         monthly_total_roi['date'] = monthly_total_roi['month'].map(month_date_map)
 
-        # --- UI: выбор кампаний ---
         all_columns = final_df.columns.tolist()
 
         selected_columns = slt.multiselect(
@@ -423,7 +418,6 @@ with graph_container:
             "Total ROI": "#00ffcc"
         }
 
-        # --- Линии затрат ---
         for col in filtered_cost_df.columns:
             fig.add_trace(
                 go.Scatter(
@@ -445,7 +439,6 @@ with graph_container:
                 secondary_y=False
             )
 
-        # --- Линии ROI по кампаниям ---
         for campaign in selected_roi_campaigns:
             campaign_roi = filtered_roi_df[
                 filtered_roi_df['campaign_number'] == campaign
@@ -472,7 +465,6 @@ with graph_container:
                 secondary_y=True
             )
 
-        # --- Линия Total ROI ---
         if "Total" in selected_columns:
             fig.add_trace(
                 go.Scatter(
@@ -514,7 +506,6 @@ with graph_container:
         slt.plotly_chart(fig, use_container_width=True)
 
     else:
-        # --- Использование кампаний по месяцам ---
         campaign_usage = (
             daf.groupby(['date', 'campaign_number'])
             .agg(
@@ -653,24 +644,20 @@ with barchart_container:
         slt.warning("Выберите хотя бы одну кампанию")
         slt.stop()
 
-    # --- Фильтрация ---
     filtered_daf = daf[daf['campaign_number'].isin(selected_campaigns)]
 
-    # --- Группировка ---
     engagement_daf = (
         filtered_daf.groupby(['user_engagement', 'campaign_number'])['post_click_conversions']
         .sum()
         .reset_index()
     )
 
-    # --- Переименование ---
     engagement_daf = engagement_daf.rename(columns={
         'user_engagement': 'Вовлеченность',
         'post_click_conversions': 'Конверсии',
         'campaign_number': 'Кампания'
     })
 
-    # --- График ---
     slt.bar_chart(
         engagement_daf,
         x='Вовлеченность',
@@ -728,9 +715,6 @@ with barchart_container:
                 color='Признак'
             )
 
-
-
-# --- Автообновление ---
 
 with roas_pred:
     slt.subheader("Прогноз окупаемости рекламного размещения")
