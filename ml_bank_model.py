@@ -20,7 +20,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 
-MOD_VERS = "bank_dep_v5"
+modelver = "bank_dep_v5"
 
 projdir = Path(__file__).resolve().parent
 defpath = projdir / "Kaggle Database" / "bank.csv"
@@ -69,7 +69,13 @@ def mk_ohe():
         return OneHotEncoder(handle_unknown="ignore", sparse=False)
 
 
-def load_dt(fp=None):
+def load_dt(fp=None, df=None):
+    if df is not None:
+        return df.iloc[:, :17].copy()
+
+    if isinstance(fp, pd.DataFrame):
+        return fp.iloc[:, :17].copy()
+
     path = resolve_data_path(fp)
     return pd.read_csv(path, usecols=range(17))
 
@@ -248,7 +254,7 @@ def mk_artf(
         "num_cols": num_cols,
         "input_cols": input_cols,
         "excluded_columns": excluded_columns,
-        "MOD_VERS": MOD_VERS,
+        "modelver": modelver,
         "contactctx": contactctx,
         "decision_threshold": float(threshold_info["threshold"]),
         "threshold_validation_metrics": threshold_info,
@@ -261,11 +267,12 @@ def mk_artf(
 
 def build_training_data(
     fp=None,
+    df=None,
     dd=False,
     drop_columns=None,
     contactprof_val=contactprof,
 ):
-    source_df = load_dt(fp)
+    source_df = load_dt(fp=fp, df=df)
 
     filtered_df, contactctx = apply_contactprof(
         source_df,
@@ -298,6 +305,7 @@ def build_training_data(
 
 def train_gb_artifact(
     fp=None,
+    df=None,
     dd=False,
     drop_columns=None,
     contactprof_val=contactprof,
@@ -306,6 +314,7 @@ def train_gb_artifact(
 
     data = build_training_data(
         fp=fp,
+        df=df,
         dd=dd,
         drop_columns=drop_columns,
         contactprof_val=contactprof_val,
@@ -361,6 +370,7 @@ def train_gb_artifact(
 
 def train_gb(
     fp=None,
+    df=None,
     dd=False,
     drop_columns=None,
     contactprof_val=contactprof,
@@ -368,6 +378,7 @@ def train_gb(
     artifact, X_train, X_test, y_test, y_pred, y_proba, report, matrix = (
         train_gb_artifact(
             fp=fp,
+            df=df,
             dd=dd,
             drop_columns=drop_columns,
             contactprof_val=contactprof_val,
@@ -394,12 +405,14 @@ def train_gb(
 
 def train_mdl(
     fp=None,
+    df=None,
     dd=False,
     drop_columns=None,
     contactprof_val=contactprof,
 ):
     return train_gb(
         fp=fp,
+        df=df,
         dd=dd,
         drop_columns=drop_columns,
         contactprof_val=contactprof_val,
@@ -463,7 +476,7 @@ def pred_client(client_data=None, model_artifact=None, cd=None):
 if __name__ == "__main__":
     result = train_gb()
 
-    print("MOD_VERS:", MOD_VERS)
+    print("modelver:", modelver)
     print("defpath:", defpath)
     print("contactctx:", result["contactctx"])
     print("Используемые входы:", result["input_cols"])
