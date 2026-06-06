@@ -8,21 +8,12 @@ from sklearn.ensemble import RandomForestClassifier
 from ml_bank_model import pred_client, train_gb_artifact
 from src.auth import init_session_state, require_login, check_session
 
-
-file_path = "bank.csv"
-
 bank_daf = kagglehub.load_dataset(
     KaggleDatasetAdapter.PANDAS,
     "janiobachmann/bank-marketing-dataset",
-    file_path,
-)
-
-file_path = kagglehub.dataset_download(
-    "janiobachmann/bank-marketing-dataset",
-    path=file_path,
+    "bank.csv",
 )
 bank_source_columns = bank_daf.columns.tolist()
-init_session_state()
 
 VAL_LABLS = {
     "job": {
@@ -136,20 +127,14 @@ bank_daf["deposit_flag"] = (
     bank_daf["deposit"].astype(str).str.strip().str.lower() == "yes"
 ).astype(int)
 
-# --- Инициализация session_state ---
 init_session_state()
 
-# --- Восстановление session_id из query params ---
 params = slt.query_params
 if "session_id" in params:
     slt.session_state.session_id = params["session_id"][0]
     if check_session():
         slt.session_state.authenticated = True
 
-# --- Проверка авторизации ---
-# require_login()
-
-# --- Контент страницы ---
 slt.header("Аналитика рекламной кампании Банка-X")
 slt.markdown(
     "Готовая статистика банковской кампании и факторов открытия депозита"
