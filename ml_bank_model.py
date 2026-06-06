@@ -19,7 +19,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
+
 modelver = "bank_dep_v5"
+
+projdir = Path(__file__).resolve().parent
+defpath = projdir / "Kaggle Database" / "bank.csv"
 
 bank_daf = kagglehub.load_dataset(
     KaggleDatasetAdapter.PANDAS,
@@ -77,6 +81,9 @@ def load_dt(fp=None, df=None):
 
     if isinstance(fp, pd.DataFrame):
         return fp.iloc[:, :17].copy()
+
+    if fp is None:
+        return bank_daf.iloc[:, :17].copy()
 
     path = resolve_data_path(fp)
     return pd.read_csv(path, usecols=range(17))
