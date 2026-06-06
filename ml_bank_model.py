@@ -6,7 +6,7 @@ import kagglehub
 from kagglehub import KaggleDatasetAdapter
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingClassifier
-
+from sklearn.model_selection import train_test_split
 
 modelver = "bank_dep_v5"
 
