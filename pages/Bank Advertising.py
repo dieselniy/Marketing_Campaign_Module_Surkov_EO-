@@ -127,12 +127,6 @@ bank_daf["deposit_flag"] = (
     bank_daf["deposit"].astype(str).str.strip().str.lower() == "yes"
 ).astype(int)
 
-# --- Восстановление session_id из query params ---
-
-if "session_id" in params:
-    slt.session_state.session_id = params["session_id"][0]
-    if check_session():
-        slt.session_state.authenticated = True
 
 # --- Контент страницы ---
 slt.header("Аналитика рекламной кампании Банка-X")
