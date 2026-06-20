@@ -1,5 +1,4 @@
 import streamlit as slt
-from src.auth import init_session_state, require_login, check_session
 import time
 import numpy as npy
 import pandas as pds
@@ -18,17 +17,7 @@ file_path = kagglehub.dataset_download(
 daf = pds.read_csv(file_path, usecols=range(12))
 source_columns = daf.columns.tolist()
 
-init_session_state()
-
 slt.set_page_config(page_title="Онлайн Кампании", layout="wide")
-
-
-params = slt.query_params
-if "session_id" in params:
-    slt.session_state.session_id = params["session_id"][0]
-    if check_session():
-        slt.session_state.authenticated = True
-
 slt.header("Аналитика Онлайн Маркетинговых Кампаний")
 
 # --- Контейнеры ---
