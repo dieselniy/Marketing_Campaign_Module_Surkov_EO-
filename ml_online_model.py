@@ -406,7 +406,10 @@ def predict_campaign_forecast(model_artifact, campaign_days, budget):
 
 
 if __name__ == "__main__":
-    fp = r"C:\Users\egors\OneDrive\Рабочий стол\GRADUATE\Kaggle Database\online_advertising_performance_data.csv"
+    fp = kagglehub.dataset_download(
+        "naniruddhan/online-advertising-digital-marketing-data",
+        path="online_advertising_performance_data.csv",
+    )
     res = train_roas(fp=fp)
     print("Основная метрика: ROAS = post_click_sales_amount / cost")
     print("Размер обучающей выборки:", res["X_train_shape"])
